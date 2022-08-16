@@ -58,3 +58,14 @@ extern "C" int debug_tick
 
   return dtm->done() ? (dtm->exit_code() << 1 | 1) : 0;
 }
+
+extern "C" int dtm_set_exitcode(unsigned int code)
+{
+  if (!dtm) {
+    std::cerr << "*** Cannot return the exit code without a running DTM!\n";
+    return -1;
+  }
+
+  dtm->exitcode = code;
+  return (int) code;
+}

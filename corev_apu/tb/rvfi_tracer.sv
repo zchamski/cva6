@@ -7,11 +7,15 @@
 //
 // Original Author: Jean-Roch COULON (jean-roch.coulon@invia.fr)
 
+// Import the DTM exit code setter function.
+import "DPI-C" function void dtm_set_exitcode(input longint code);
+
 module rvfi_tracer #(
   parameter logic [7:0] HART_ID      = '0,
   parameter int unsigned DEBUG_START = 0,
   parameter int unsigned NR_COMMIT_PORTS = 2,
-  parameter int unsigned DEBUG_STOP  = 0
+  parameter int unsigned DEBUG_STOP  = 0,
+  parameter logic [riscv::XLEN-1:0] TOHOST_ADDR = '0
 )(
   input logic                           clk_i,
   input logic                           rst_ni,
@@ -56,7 +60,20 @@ module rvfi_tracer #(
           $fwrite(f, " x%d 0x%h\n",
             rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
         end else $fwrite(f, "\n");
-        if (rvfi_i[i].insn == 32'h00000073) begin
+        // if (rvfi_i[i].insn == 32'h00000073) begin
+        //   $finish(1);
+        //   $finish(1);
+        // end
+        // TERMINATION in 64 bits: upon SD to TOHOST with bit 0 of MEM_WDATA == 1'b1
+        // and the two MSBytes of MEM_WDATA equal to zero.
+        // TOHOST is assumed aligned on a 64-bit boundary.
+        if (rvfi_i[i].insn[6:0]        == 7'b0100011  &&
+            rvfi_i[i].insn[14:12]      == 3'b100      &&
+            rvfi_i[i].mem_addr         == TOHOST_ADDR &&
+            rvfi_i[i].mem_wmask        == 8'b11111111 &&
+            rvfi_i[i].mem_wdata[63:48] == '0          &&
+            rvfi_i[i].mem_wdata[0]     == 0'b1) begin
+          dtm_set_exitcode(rvfi_i[i].mem_wdata)
           $finish(1);
           $finish(1);
         end
