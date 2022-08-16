@@ -139,6 +139,8 @@ dpi_hdr := $(wildcard corev_apu/tb/dpi/*.h)
 dpi_hdr := $(addprefix $(root-dir), $(dpi_hdr))
 CFLAGS := -I$(QUESTASIM_HOME)/include         \
           -I$(VCS_HOME)/include \
+	  -I$(VERILATOR_ROOT)/include \
+	  -I$(VERILATOR_ROOT)/include/vltstd \
           -I$(RISCV)/include                  \
           -I$(SPIKE_ROOT)/include             \
           $(if $(DROMAJO), -I../corev_apu/tb/dromajo/src,) \
