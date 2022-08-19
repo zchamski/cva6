@@ -9,21 +9,23 @@
 
 // Import the DTM exit code setter function.
 import "DPI-C" function void dtm_set_exitcode(input longint code);
+import "DPI-C" function longint dtm_get_tohost_addr();
 
 module rvfi_tracer #(
   parameter logic [7:0] HART_ID      = '0,
   parameter int unsigned DEBUG_START = 0,
   parameter int unsigned NR_COMMIT_PORTS = 2,
-  parameter int unsigned DEBUG_STOP  = 0,
-  parameter logic [riscv::XLEN-1:0] TOHOST_ADDR = '0
+  parameter int unsigned DEBUG_STOP  = 0
 )(
   input logic                           clk_i,
   input logic                           rst_ni,
   input rvfi_pkg::rvfi_instr_t[NR_COMMIT_PORTS-1:0]           rvfi_i
 );
 
+  logic[riscv::XLEN-1:0] TOHOST_ADDR;
   int f;
   int unsigned SIM_FINISH;
+
   initial begin
     f = $fopen($sformatf("trace_rvfi_hart_%h.dasm", HART_ID), "w");
     if (!$value$plusargs("time_out=%d", SIM_FINISH)) SIM_FINISH = 2000000;
@@ -67,15 +69,40 @@ module rvfi_tracer #(
         // TERMINATION in 64 bits: upon SD to TOHOST with bit 0 of MEM_WDATA == 1'b1
         // and the two MSBytes of MEM_WDATA equal to zero.
         // TOHOST is assumed aligned on a 64-bit boundary.
-        if (rvfi_i[i].insn[6:0]        == 7'b0100011  &&
-            rvfi_i[i].insn[14:12]      == 3'b100      &&
-            rvfi_i[i].mem_addr         == TOHOST_ADDR &&
-            rvfi_i[i].mem_wmask        == 8'b11111111 &&
-            rvfi_i[i].mem_wdata[63:48] == '0          &&
-            rvfi_i[i].mem_wdata[0]     == 0'b1) begin
-          dtm_set_exitcode(rvfi_i[i].mem_wdata)
-          $finish(1);
-          $finish(1);
+        // Treat first uncompressed insns.
+        if (rvfi_i[i].insn[31:16] != '0 &&
+            rvfi_i[i].insn[6:0]        == 7'b0100011  &&
+            rvfi_i[i].insn[14:12]      == 3'b011      ) begin
+          TOHOST_ADDR = dtm_get_tohost_addr();
+          if (TOHOST_ADDR == '0) begin
+            $display("*** No valid address of 'tohost' (tohost == 0x%h), termination possible only by timeout or Ctrl-C!\n", TOHOST_ADDR);
+            $fwrite(f, "*** No valid address of 'tohost' (tohost == 0x%h), termination possible only by timeout or Ctrl-C!\n", TOHOST_ADDR);
+          end
+
+          $fwrite(f, "### Got SD, TOHOST_ADDR = 0x%h\n", TOHOST_ADDR);
+        end
+
+        if (rvfi_i[i].insn[31:16] == '0) begin // compressed instruction
+          if (rvfi_i[i].insn[15:13] == 3'b111 &&
+              rvfi_i[i].insn[1:0] == 2'b00) begin
+            $fwrite(f, "### Got a *compressed* SD instruction, TOHOST_ADDR = 0x%h\n", TOHOST_ADDR);
+          end
+        end
+
+        $fwrite(f, "###    mem_addr  = 0x%h\n", rvfi_i[i].mem_addr);
+        $fwrite(f, "###    mem_wmask = 0x%h\n", rvfi_i[i].mem_wmask);
+        $fwrite(f, "###    mem_wdata = 0x%h\n", rvfi_i[i].mem_wdata);
+        $fwrite(f, "###    mem_rmask = 0x%h\n", rvfi_i[i].mem_rmask);
+        $fwrite(f, "###    mem_rdata = 0x%h\n", rvfi_i[i].mem_rdata);
+
+        if (rvfi_i[i].mem_addr       == TOHOST_ADDR) begin
+          $fwrite(f, "### Got SD to TOHOST_ADDR (0x%h)\n", TOHOST_ADDR);
+          if (rvfi_i[i].mem_wdata[63:48] == '0 &&
+              rvfi_i[i].mem_wdata[0]     == 0'b1) begin
+            dtm_set_exitcode(rvfi_i[i].mem_wdata);
+            $finish(1);
+            $finish(1);
+          end
         end
       end else if (rvfi_i[i].trap)
         $fwrite(f, "exception : 0x%h\n", pc64);

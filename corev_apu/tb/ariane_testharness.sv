@@ -27,8 +27,7 @@ module ariane_testharness #(
 `endif
   parameter int unsigned NUM_WORDS         = 2**25,         // memory size
   parameter bit          StallRandomOutput = 1'b0,
-  parameter bit          StallRandomInput  = 1'b0,
-  parameter logic [riscv::XLEN-1:0] TOHOST_ADDR = '0
+  parameter bit          StallRandomInput  = 1'b0
 ) (
   input  logic                           clk_i,
   input  logic                           rtc_i,
@@ -659,8 +658,7 @@ module ariane_testharness #(
   rvfi_tracer  #(
     .HART_ID(hart_id),
     .DEBUG_START(0),
-    .DEBUG_STOP(0),
-    .TOHOST_ADDR(TOHOST_ADDR)
+    .DEBUG_STOP(0)
   ) rvfi_tracer_i (
     .clk_i(clk_i),
     .rst_ni(rst_ni),

@@ -283,13 +283,21 @@ done_processing:
   signal(SIGTERM, handle_sigterm);
 #endif
 
-  std::unique_ptr<Variane_testharness> top(new Variane_testharness);
-
-  // Use an hitf hexwriter to read the binary data.
+  // Use an htif hexwriter to read the binary data.
   htif_hexwriter_t htif(0x0, 1, -1);
   memif_t memif(&htif);
   reg_t entry;
-  load_elf(htif_argv[1], &memif, &entry);
+
+  // Collect symbol table upon loading the ELF file and extract address of TOHOST.
+  std::map<std::string, uint64_t> symbol_table = load_elf(htif_argv[1], &memif, &entry);
+  if (symbol_table.count("tohost")) {
+    dtm->set_tohost_addr((unsigned long int) symbol_table["tohost"]);
+  } else {
+    std::cerr << "### Symbol 'tohost' not present in file '" << htif_argv[1] << "', termination possible only by timeout or Ctrl-C!\n";
+    dtm->set_tohost_addr(0);
+  }
+
+  std::unique_ptr<Variane_testharness> top(new Variane_testharness);
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals

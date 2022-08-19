@@ -4,6 +4,7 @@
 #include <fesvr/dtm.h>
 #include <vpi_user.h>
 #include <svdpi.h>
+#include <iostream>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
@@ -59,13 +60,18 @@ extern "C" int debug_tick
   return dtm->done() ? (dtm->exit_code() << 1 | 1) : 0;
 }
 
-extern "C" int dtm_set_exitcode(unsigned int code)
+extern "C" void dtm_set_exitcode(unsigned int code)
 {
   if (!dtm) {
     std::cerr << "*** Cannot return the exit code without a running DTM!\n";
-    return -1;
+    return;
   }
 
-  dtm->exitcode = code;
-  return (int) code;
+  dtm->set_exitcode(code);
+}
+
+extern "C" unsigned long int dtm_get_tohost_addr(void)
+{
+  std::cerr << "### Calling dtm->get_tohost_addr(), value returned is 0x" << std::hex << dtm->get_tohost_addr() << std::dec << "\n";
+  return dtm->get_tohost_addr();
 }
