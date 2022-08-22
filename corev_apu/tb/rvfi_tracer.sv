@@ -58,7 +58,6 @@ module rvfi_tracer #(
       // TERMINATION in 64 bits: upon SD to TOHOST with bit 0 of MEM_WDATA == 1'b1
       // and the two MSBytes of MEM_WDATA equal to zero.
       // TOHOST is assumed aligned on an XLEN-bit boundary.
-      store_w_d_insn[i] = 0;
 
       // Detect a write of non-zero value into tohost (64b: full dword, 32b: lower word).
       // Postpone assignment to end of cycle for situations where mem_addr and mem_wdata
@@ -70,6 +69,17 @@ module rvfi_tracer #(
         prev_write_into_tohost[i] <= 1'b1;
         value_in_tohost[i] <= rvfi_i[i].mem_wdata;
       end
+
+      // Store insn detection: set 'store_w_d_insn[i]' if current insn is a word
+      // or dword store. The insn does not need to be marked valid.
+      // Check for uncompressed and compressed SD/SW insns.
+      if ((rvfi_i[i].insn[6:0] == 7'b0100011 && (rvfi_i[i].insn[14:12] == 3'b011   ||
+                                                  rvfi_i[i].insn[14:12] == 3'b010)) ||
+          (rvfi_i[i].insn[1:0] == 2'b00      && ((rvfi_i[i].insn[15:13] == 3'b111 && riscv::XLEN == 64) ||
+                                                  rvfi_i[i].insn[15:13] == 3'b110)))
+        store_w_d_insn[i] = 1;
+      else
+        store_w_d_insn[i] = 0;
 
       pc64 = {{riscv::XLEN-riscv::VLEN{rvfi_i[i].pc_rdata[riscv::VLEN-1]}}, rvfi_i[i].pc_rdata};
       // print the instruction information if the instruction is valid or a trap is taken
@@ -95,18 +105,6 @@ module rvfi_tracer #(
           $fwrite(f, " x%d 0x%h\n",
             rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
         end else $fwrite(f, "\n");
-
-        // Store detection: Check for uncompressed SD/SW insns.
-        if ( rvfi_i[i].insn[6:0]   == 7'b0100011 &&  /* 'store' opcode */
-            (rvfi_i[i].insn[14:12] == 3'b011     ||  /* SD */
-             rvfi_i[i].insn[14:12] == 3'b010))       /* SW */
-            store_w_d_insn[i] = 1;
-
-        // Store detection: CHeck for compressed SD/SW instruction.
-        if (rvfi_i[i].insn[1:0] == 2'b00                             /* compressed, quadrant 0 */  &&
-            ((riscv::XLEN == 64 && rvfi_i[i].insn[15:13] == 3'b111)  /* rv64 && func3 == C.SD */   ||
-             rvfi_i[i].insn[15:13] == 3'b110                         /* func3 == C.SW */           ))
-          store_w_d_insn[i] = 1;
 
         // If there was a write of non-zero vaue into (the lower half of) tohost,
         // terminate the simulation.
