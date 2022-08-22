@@ -13,7 +13,6 @@
 // Date: 19.04.2017
 // Description: Instantiation of all functional units residing in the execute stage
 
-
 module ex_stage import ariane_pkg::*; #(
     parameter int unsigned ASID_WIDTH = 1,
     parameter ariane_pkg::ariane_cfg_t ArianeCfg = ariane_pkg::ArianeDefaultConfig
@@ -118,6 +117,11 @@ module ex_stage import ariane_pkg::*; #(
     input  riscv::pmpcfg_t [15:0]                  pmpcfg_i,
     input  logic[15:0][riscv::PLEN-3:0]            pmpaddr_i
 );
+
+    initial begin
+      $dumpfile("verilator.vcd");
+      $dumpvars(3, ex_stage);
+    end
 
     // -------------------------
     // Fixed Latency Units
@@ -381,3 +385,13 @@ module ex_stage import ariane_pkg::*; #(
 	end
 
 endmodule
+
+`ifdef VERILATOR
+`verilator_config
+// tracing_off
+tracing_on  -file "ex_stage.sv"
+tracing_on  -file "load_store_unit.sv"
+tracing_on  -file "load_unit.sv"
+tracing_on  -file "store_unit.sv"
+tracing_on  -file "rvfi_tracer.sv"
+`endif
