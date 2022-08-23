@@ -41,15 +41,20 @@ module rvfi_tracer #(
         // Destination register information
         $fwrite(f, "%h 0x%h (0x%h)",
           rvfi_i[i].mode, pc64, rvfi_i[i].insn);
-        // Decode instruction to know if destination register is FP register
+        // Decode instruction to know if destination register is FP register.
+        // Handle both uncompressed and compressed instructions.
         if ( rvfi_i[i].insn[6:0] == 7'b1001111 ||
              rvfi_i[i].insn[6:0] == 7'b1001011 ||
              rvfi_i[i].insn[6:0] == 7'b1000111 ||
              rvfi_i[i].insn[6:0] == 7'b1000011 ||
              rvfi_i[i].insn[6:0] == 7'b0000111 ||
-            (rvfi_i[i].insn[6:0] == 7'b1010011 && rvfi_i[i].insn[31:26] != 6'b111000
-                                               && rvfi_i[i].insn[31:26] != 6'b101000
-                                               && rvfi_i[i].insn[31:26] != 6'b110000) )
+            (rvfi_i[i].insn[6:0] == 7'b1010011 &&     rvfi_i[i].insn[31:26] != 6'b111000
+                                               &&     rvfi_i[i].insn[31:26] != 6'b101000
+                                               &&     rvfi_i[i].insn[31:26] != 6'b110000) ||
+            // Compressed instructions: FP loads in quadrants 0 and 2
+            (rvfi_i[i].insn[0] == 1'b0 && ((riscv::FLEN >= 64 && rvfi_i[i].insn[15:13] == 3'b001 /* c.fld, c.fldsp */ ) ||
+                                           (riscv::XLEN == 32 &&
+                                            riscv::FLEN >= 32 && rvfi_i[i].insn[15:13] == 3'b011 /* c.flw, c.flwsp */ ))))
           $fwrite(f, " f%d 0x%h\n",
             rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
         else if (rvfi_i[i].rd_addr != 0) begin
