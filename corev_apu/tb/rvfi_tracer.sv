@@ -55,11 +55,16 @@ module rvfi_tracer #(
   always_ff @(posedge clk_i) begin
     for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
 
-      // TERMINATION in 64 bits: upon SD to TOHOST with bit 0 of MEM_WDATA == 1'b1
-      // and the two MSBytes of MEM_WDATA equal to zero.
+      // TERMINATION condition: "test result" value stored into tohost:
+      // - 64 bits: upon SD to TOHOST_ADDR with bit 0 of MEM_WDATA == 1'b1
+      //   and the two MSBytes of MEM_WDATA equal to zero.
+      // - 32 bits: upon SW to TOHOST_ADDR with bit 0 of MEM_WDATA == 1'b1,
+      //   FORNOW no check is done on SW to TOHOST_ADDR+4 (bit 0 of tohost == 1'b1
+      //   implies upper 16 bits of the upper word of tohost should be 16'b0.)
+
       // TOHOST is assumed aligned on an XLEN-bit boundary.
 
-      // Detect a write of non-zero value into tohost (64b: full dword, 32b: lower word).
+      // Detect ANY write of non-zero value into tohost (64b: full dword, 32b: lower word).
       // Postpone assignment to end of cycle for situations where mem_addr and mem_wdata
       // are asserted for one cycle only and deasserted when 'valid' gets asserted.  This
       // occurs for compressed writes.
@@ -106,9 +111,11 @@ module rvfi_tracer #(
             rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
         end else $fwrite(f, "\n");
 
-        // If there was a write of non-zero vaue into (the lower half of) tohost,
-        // terminate the simulation.
-        if (store_w_d_insn[i] && prev_write_into_tohost[i]) begin
+        // If there was a write of non-zero value into (the lower half of) tohost
+        // with bit 0 set, terminate the simulation.
+        if (store_w_d_insn[i] &&
+            prev_write_into_tohost[i] &&
+            value_in_tohost[i][0] == 1'b1) begin
           $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", value_in_tohost[i], pc64);
           dtm_set_exitcode(value_in_tohost[i]);
           $finish(1);
