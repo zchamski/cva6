@@ -125,7 +125,7 @@ module ex_stage import ariane_pkg::*; #(
 );
 
     initial begin
-      $dumpfile("verilator.vcd");
+      $dumpfile("verilator.fst");
       $dumpvars(3, ex_stage);
     end
 
