@@ -314,14 +314,12 @@ done_processing:
 #if VM_TRACE_VCD
   std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
   std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
-#else
-  std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
-#if VM_TRACE_VCD
   if (vcdfile) {
     top->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
     tfp->open("");
   }
 #else
+  std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
   if (fst_fname) {
     tfp->open(fst_fname);
   }
