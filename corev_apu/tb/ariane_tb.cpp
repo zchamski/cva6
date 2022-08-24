@@ -18,7 +18,11 @@
 #include "Variane_testharness.h"
 #include "verilator.h"
 #include "verilated.h"
+#if VM_TRACE_VCD
 #include "verilated_vcd_c.h"
+#else
+#include "verilated_fst_c.h"
+#endif
 #include "Variane_testharness__Dpi.h"
 
 #include <stdio.h>
@@ -131,6 +135,7 @@ int main(int argc, char **argv) {
   uint16_t rbb_port = 0;
 #if VM_TRACE
   FILE * vcdfile = NULL;
+  char * fst_fname = NULL;
   uint64_t start = 0;
 #endif
   char ** htif_argv = NULL;
@@ -147,12 +152,13 @@ int main(int argc, char **argv) {
 #if VM_TRACE
       {"vcd",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
+      {"fst-trace",   required_argument, 0, 'f' },
 #endif
       HTIF_LONG_OPTIONS
     };
     int option_index = 0;
 #if VM_TRACE
-    int c = getopt_long(argc, argv, "-chpm:s:r:v:Vx:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "-chpm:s:r:vf:Vx:", long_options, &option_index);
 #else
     int c = getopt_long(argc, argv, "-chpm:s:r:V", long_options, &option_index);
 #endif
@@ -178,6 +184,10 @@ int main(int argc, char **argv) {
           std::cerr << "Unable to open " << optarg << " for VCD write\n";
           return 1;
         }
+        break;
+      }
+      case 'f': {
+        fst_fname = optarg;
         break;
       }
       case 'x': start = atoll(optarg);      break;
@@ -301,12 +311,21 @@ done_processing:
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
+#if VM_TRACE_VCD
   std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
   std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
+#else
+  std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
+#if VM_TRACE_VCD
   if (vcdfile) {
     top->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
     tfp->open("");
   }
+#else
+  if (fst_fname) {
+    tfp->open(fst_fname);
+  }
+#endif
 #endif
 
   for (int i = 0; i < 10; i++) {
