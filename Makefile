@@ -605,10 +605,11 @@ verilate_command := $(verilator)                                                
                     $(if ($(PRELOAD)!=""), -DPRELOAD=1,)                                                         \
                     $(if $(DROMAJO), -DDROMAJO=1,)                                                               \
                     $(if $(PROFILE),--stats --stats-vars --profile-cfuncs,)                                      \
-                    $(if $(DEBUG),--trace-fst --trace-structs,)                                                      \
-                    $(if $(DEBUG), $(VERILATOR_ROOT)/include/verilated_fst_c.cpp)                                \
-                    -LDFLAGS "-L$(RISCV)/lib -L$(SPIKE_ROOT)/lib -Wl,-rpath,$(RISCV)/lib -Wl,-rpath,$(SPIKE_ROOT)/lib -lfesvr$(if $(PROFILE), -g -pg,) $(if $(DROMAJO), -L../corev_apu/tb/dromajo/src -ldromajo_cosim,) -lpthread $(if $(DEBUG), -lz,)" \
-                    -CFLAGS "$(CFLAGS)$(if $(PROFILE), -g -pg,) $(if $(DROMAJO), -DDROMAJO=1,) -DVL_DEBUG"       \
+                    $(if $(DEBUG), --trace-structs,)                                                             \
+                    $(if $(DEBUG_COMPACT), --trace-fst $(VERILATOR_ROOT)/include/verilated_fst_c.cpp)            \
+                    $(if $(DEBUG_FAST), --trace $(VERILATOR_ROOT)/include/verilated_vcd_c.cpp,)                  \
+                    -LDFLAGS "-L$(RISCV)/lib -L$(SPIKE_ROOT)/lib -Wl,-rpath,$(RISCV)/lib -Wl,-rpath,$(SPIKE_ROOT)/lib -lfesvr$(if $(PROFILE), -g -pg,) $(if $(DROMAJO), -L../corev_apu/tb/dromajo/src -ldromajo_cosim,) -lpthread $(if $(DEBUG_COMPACT), -lz,)" \
+                    -CFLAGS "$(CFLAGS)$(if $(PROFILE), -g -pg,) $(if $(DROMAJO), -DDROMAJO=1,) -DVL_DEBUG $(if $(DEBUG), -DVM_TRACE,) $(if $(DEBUG_FAST), -DDEBUG_VCD,) $(if $(DEBUG_COMPACT), -DDEBUG_FST)"  \
                     -Wall --cc  --vpi                                                                            \
                     $(list_incdir) --top-module ariane_testharness                                               \
 					--threads-dpi none 																			 \

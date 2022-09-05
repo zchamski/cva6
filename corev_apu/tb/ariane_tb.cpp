@@ -99,6 +99,8 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
 #if VM_TRACE
 "  - run a bare metal test to generate a VCD waveform:\n"
 "    %s -v rv64ui-p-add.vcd $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
+"  - run a bare metal test to generate an FST waveform:\n"
+"    %s -f rv64ui-p-add.fst $RISCV/riscv64-unknown-elf/share/riscv-tests/isa/rv64ui-p-add\n"
 #endif
 "  - run an ELF (you wrote, called 'hello') using the proxy kernel:\n"
 "    %s pk hello\n",
