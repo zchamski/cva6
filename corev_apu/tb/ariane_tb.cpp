@@ -18,10 +18,10 @@
 #include "Variane_testharness.h"
 #include "verilator.h"
 #include "verilated.h"
-#if VM_TRACE_VCD
-#include "verilated_vcd_c.h"
-#else
+#if VM_TRACE_FST
 #include "verilated_fst_c.h"
+#else
+#include "verilated_vcd_c.h"
 #endif
 #include "Variane_testharness__Dpi.h"
 
@@ -86,6 +86,7 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
 #endif
   fputs("\
   -v, --vcd=FILE,          Write vcd trace to FILE (or '-' for stdout)\n\
+  -f, --fst-trace=FILE,    Write fst trace to FILE\n\
   -p,                      Print performance statistic at end of test\n\
 ", stdout);
   // fputs("\n" PLUSARG_USAGE_OPTIONS, stdout);
@@ -106,7 +107,7 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
 "    %s pk hello\n",
          program_name, program_name, program_name
 #if VM_TRACE
-         , program_name
+         , program_name, program_name
 #endif
          );
 }
@@ -190,6 +191,7 @@ int main(int argc, char **argv) {
       }
       case 'f': {
         fst_fname = optarg;
+        std::cerr << "### Request for FST waveform trace into file '" << fst_fname << "'\n";
         break;
       }
       case 'x': start = atoll(optarg);      break;
@@ -305,17 +307,20 @@ done_processing:
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
-#if VM_TRACE_VCD
+#if VM_TRACE_FST
+  std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
+  if (fst_fname) {
+    std::cerr << "### Starting FST waveform dump into file '" << fst_fname << "'...\n";
+    top->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
+    tfp->open(fst_fname);
+  }
+#else
   std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
   std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
   if (vcdfile) {
+    std::cerr << "### Starting VCD waveform dump ...\n";
     top->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
     tfp->open("");
-  }
-#else
-  std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
-  if (fst_fname) {
-    tfp->open(fst_fname);
   }
 #endif
 #endif

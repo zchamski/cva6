@@ -138,6 +138,12 @@ module ex_stage import ariane_pkg::*; #(
     //                        they will simply block the issue of all other
     //                        instructions.
 
+    // Dump control (until fixed on C++ side)
+    initial begin
+        $display("Setting up waveform dump");
+        $dumpfile("verilator.fst");
+        $dumpvars(3, dut);
+    end
 
     logic current_instruction_is_sfence_vma;
     // These two register store the rs1 and rs2 parameters in case of `SFENCE_VMA`
@@ -380,3 +386,13 @@ module ex_stage import ariane_pkg::*; #(
 	end
 
 endmodule
+
+`ifdef VERILATOR
+`verilator_config
+tracing_on
+tracing_on  -file "core/ex_stage.sv"
+tracing_on  -file "core/load_store_unit.sv"
+tracing_on  -file "core/load_unit.sv"
+tracing_on  -file "core/store_unit.sv"
+tracing_on  -file "corev_apu/tb/rvfi_tracer.sv"
+`endif
