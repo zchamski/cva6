@@ -586,7 +586,7 @@ verilate_command := $(verilator)                                                
                     $(filter-out %.vhd, $(ariane_pkg))                                                           \
                     $(filter-out core/fpu_wrap.sv, $(filter-out %.vhd, $(src)))                                  \
                     $(copro_src)                                                                                 \
-                    +define+$(defines)                                                                           \
+                    +define+$(defines)$(if $(DEBUG),+VM_TRACE,)$(if $(DEBUG_COMPACT),+VM_TRACE_FST,)             \
                     common/local/util/sram.sv                                                                    \
                     corev_apu/tb/common/mock_uart.sv                                                             \
                     +incdir+corev_apu/axi_node                                                                   \
