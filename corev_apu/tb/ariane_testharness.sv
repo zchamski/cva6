@@ -748,6 +748,7 @@ module ariane_testharness #(
 endmodule
 
 `ifdef VERILATOR
+`ifdef VM_TRACE
 `verilator_config
 tracing_off
 tracing_on  -file "../core/ex_stage.sv"
@@ -755,4 +756,5 @@ tracing_on  -file "../core/load_store_unit.sv"
 tracing_on  -file "../core/load_unit.sv"
 tracing_on  -file "../core/store_unit.sv"
 tracing_on  -file "../corev_apu/tb/rvfi_tracer.sv"
+`endif
 `endif
