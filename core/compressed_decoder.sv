@@ -60,6 +60,7 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC0Ld: begin
+                        // This is not correct on RV32*f, where it should map to FLW
                         // c.ld -> ld rd', imm(rs1')
                         // CLD: | funct3 | imm[5:3] | rs1' | imm[7:6] | rd' | C0 |
                         instr_o = {4'b0, instr_i[6:5], instr_i[12:10], 3'b000, 2'b01, instr_i[9:7], 3'b011, 2'b01, instr_i[4:2], riscv::OpcodeLoad};
@@ -76,6 +77,7 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC0Sd: begin
+                        // This is not correct on RV32*f, where it should map to FSW
                         // c.sd -> sd rs2', imm(rs1')
                         instr_o = {4'b0, instr_i[6:5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
                     end
@@ -220,6 +222,7 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC2Ldsp: begin
+                        // This is not correct on RV32*f, where it should map to FLWSP
                         // c.ldsp -> ld rd, imm(x2)
                         instr_o = {3'b0, instr_i[4:2], instr_i[12], instr_i[6:5], 3'b000, 5'h02, 3'b011, instr_i[11:7], riscv::OpcodeLoad};
                         if (instr_i[11:7] == 5'b0)  illegal_instr_o = 1'b1;
@@ -261,6 +264,7 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC2Sdsp: begin
+                        // This is not correct on RV32*f, where it should map to FSWSP
                         // c.sdsp -> sd rs2, imm(x2)
                         instr_o = {3'b0, instr_i[9:7], instr_i[12], instr_i[6:2], 5'h02, 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
                     end
