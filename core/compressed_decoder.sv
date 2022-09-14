@@ -60,10 +60,17 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC0Ld: begin
-                        // This is not correct on RV32*f, where it should map to FLW
-                        // c.ld -> ld rd', imm(rs1')
-                        // CLD: | funct3 | imm[5:3] | rs1' | imm[7:6] | rd' | C0 |
-                        instr_o = {4'b0, instr_i[6:5], instr_i[12:10], 3'b000, 2'b01, instr_i[9:7], 3'b011, 2'b01, instr_i[4:2], riscv::OpcodeLoad};
+                        // RV64
+                        //   c.ld -> ld rd', imm(rs1')
+                        // RV32
+                        //   c.flw -> flw fprd', imm(rs1')
+                        if (riscv::XLEN == 64) begin
+                            // CLD: | funct3 | imm[5:3] | rs1' | imm[7:6] | rd' | C0 |
+                            instr_o = {4'b0, instr_i[6:5], instr_i[12:10], 3'b000, 2'b01, instr_i[9:7], 3'b011, 2'b01, instr_i[4:2], riscv::OpcodeLoad};
+                        end else begin
+                            // CFLW: | funct3 (change to LW) | imm[5:3] | rs1' | imm[7:6] | rd' | C0 |
+                            instr_o = {4'b0, instr_i[6:5], instr_i[12:10], 3'b000, 2'b01, instr_i[9:7], 3'b010, 2'b01, instr_i[4:2], riscv::OpcodeLoadFp};
+                        end
                     end
 
                     riscv::OpcodeC0Fsd: begin
@@ -77,9 +84,15 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC0Sd: begin
-                        // This is not correct on RV32*f, where it should map to FSW
-                        // c.sd -> sd rs2', imm(rs1')
-                        instr_o = {4'b0, instr_i[6:5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
+                        // RV64
+                        //   c.sd -> sd rs2', imm(rs1')
+                        // RV32
+                        //   c.fsw -> fsw fprs2', imm(rs1')
+                        if (riscv::XLEN == 64) begin
+                            instr_o = {4'b0, instr_i[6:5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
+                        end else begin
+                            instr_o = {4'b0, instr_i[6:5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b010, instr_i[11:10], 3'b000, riscv::OpcodeStoreFp};
+                        end
                     end
 
                     default: begin
