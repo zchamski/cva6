@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
 #if VM_TRACE
       {"vcd",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
-      {"fst-trace",   required_argument, 0, 'f' },
+      {"fst",         required_argument, 0, 'f' },
 #endif
       HTIF_LONG_OPTIONS
     };
@@ -307,7 +307,9 @@ done_processing:
 
 #if VM_TRACE
   Verilated::traceEverOn(true); // Verilator must compute traced signals
+#warning VM_TRACE is set
 #if VM_TRACE_FST
+#warning VM_TRACE_FST is set
   std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
   if (fst_fname) {
     std::cerr << "### Starting FST waveform dump into file '" << fst_fname << "'...\n";
