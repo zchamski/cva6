@@ -235,10 +235,16 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC2Ldsp: begin
-                        // This is not correct on RV32*f, where it should map to FLWSP
-                        // c.ldsp -> ld rd, imm(x2)
-                        instr_o = {3'b0, instr_i[4:2], instr_i[12], instr_i[6:5], 3'b000, 5'h02, 3'b011, instr_i[11:7], riscv::OpcodeLoad};
-                        if (instr_i[11:7] == 5'b0)  illegal_instr_o = 1'b1;
+                        // RV64
+                        //   c.ldsp -> ld rd, imm(x2)
+                        // RV32
+                        //   c.flwsp -> flw fprd, imm(x2)
+                        if (riscv::XLEN == 64) begin
+                            instr_o = {3'b0, instr_i[4:2], instr_i[12], instr_i[6:5], 3'b000, 5'h02, 3'b011, instr_i[11:7], riscv::OpcodeLoad};
+                            if (instr_i[11:7] == 5'b0)  illegal_instr_o = 1'b1;
+                        end else begin
+                            instr_o = {3'b0, instr_i[4:2], instr_i[12], instr_i[6:5], 3'b000, 5'h02, 3'b010, instr_i[11:7], riscv::OpcodeLoadFp};
+                        end
                     end
 
                     riscv::OpcodeC2JalrMvAdd: begin
@@ -277,9 +283,15 @@ module compressed_decoder
                     end
 
                     riscv::OpcodeC2Sdsp: begin
-                        // This is not correct on RV32*f, where it should map to FSWSP
-                        // c.sdsp -> sd rs2, imm(x2)
-                        instr_o = {3'b0, instr_i[9:7], instr_i[12], instr_i[6:2], 5'h02, 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
+                        // RV64
+                        //   c.sdsp -> sd rs2, imm(x2)
+                        // RV32
+                        //   c.fswsp -> fsw fprs2, imm(x2)
+                        if (riscv::XLEN == 64) begin
+                            instr_o = {3'b0, instr_i[9:7], instr_i[12], instr_i[6:2], 5'h02, 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
+                        end else begin
+                            instr_o = {3'b0, instr_i[9:7], instr_i[12], instr_i[6:2], 5'h02, 3'b010, instr_i[11:10], 3'b000, riscv::OpcodeStoreFp};
+                        end
                     end
 
                     default: begin
