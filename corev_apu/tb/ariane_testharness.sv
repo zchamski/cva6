@@ -86,7 +86,7 @@ module ariane_testharness #(
 `else
       $dumpfile("verilator.vcd");
 `endif
-      $dumpvars(3, dut);
+      $dumpvars(3, ariane_testharness);
   end
 `endif
 `endif
