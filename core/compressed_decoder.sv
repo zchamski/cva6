@@ -68,8 +68,8 @@ module compressed_decoder
                             // CLD: | funct3 | imm[5:3] | rs1' | imm[7:6] | rd' | C0 |
                             instr_o = {4'b0, instr_i[6:5], instr_i[12:10], 3'b000, 2'b01, instr_i[9:7], 3'b011, 2'b01, instr_i[4:2], riscv::OpcodeLoad};
                         end else begin
-                            // CFLW: | funct3 (change to LW) | imm[5:3] | rs1' | imm[7:6] | rd' | C0 |
-                            instr_o = {4'b0, instr_i[6:5], instr_i[12:10], 3'b000, 2'b01, instr_i[9:7], 3'b010, 2'b01, instr_i[4:2], riscv::OpcodeLoadFp};
+                            // CFLW: | funct3 (change to LW) | imm[5:3] | rs1' | imm[2|6] | rd' | C0 |
+                            instr_o = {5'b0, instr_i[5], instr_i[12:10], instr[6], 2'b00, 2'b01, instr_i[9:7], 3'b010, 2'b01, instr_i[4:2], riscv::OpcodeLoadFp};
                         end
                     end
 
@@ -91,7 +91,7 @@ module compressed_decoder
                         if (riscv::XLEN == 64) begin
                             instr_o = {4'b0, instr_i[6:5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
                         end else begin
-                            instr_o = {4'b0, instr_i[6:5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b010, instr_i[11:10], 3'b000, riscv::OpcodeStoreFp};
+                            instr_o = {5'b0, instr_i[5], instr_i[12], 2'b01, instr_i[4:2], 2'b01, instr_i[9:7], 3'b010, instr_i[11:10], instr_i[6], 2'b00, riscv::OpcodeStoreFp};
                         end
                     end
 
@@ -243,7 +243,7 @@ module compressed_decoder
                             instr_o = {3'b0, instr_i[4:2], instr_i[12], instr_i[6:5], 3'b000, 5'h02, 3'b011, instr_i[11:7], riscv::OpcodeLoad};
                             if (instr_i[11:7] == 5'b0)  illegal_instr_o = 1'b1;
                         end else begin
-                            instr_o = {3'b0, instr_i[4:2], instr_i[12], instr_i[6:5], 3'b000, 5'h02, 3'b010, instr_i[11:7], riscv::OpcodeLoadFp};
+                            instr_o = {4'b0, instr_i[3:2], instr_i[12], instr_i[6:4], 2'b00, 5'h02, 3'b010, instr_i[11:7], riscv::OpcodeLoadFp};
                         end
                     end
 
@@ -290,7 +290,7 @@ module compressed_decoder
                         if (riscv::XLEN == 64) begin
                             instr_o = {3'b0, instr_i[9:7], instr_i[12], instr_i[6:2], 5'h02, 3'b011, instr_i[11:10], 3'b000, riscv::OpcodeStore};
                         end else begin
-                            instr_o = {3'b0, instr_i[9:7], instr_i[12], instr_i[6:2], 5'h02, 3'b010, instr_i[11:10], 3'b000, riscv::OpcodeStoreFp};
+                            instr_o = {4'b0, instr_i[8:7], instr_i[12], instr_i[6:2], 5'h02, 3'b010, instr_i[11:9], 2'b00, riscv::OpcodeStoreFp};
                         end
                     end
 
