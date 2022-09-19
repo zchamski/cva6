@@ -93,8 +93,13 @@ module rvfi_tracer #(
         $fwrite(f, "core   0: 0x%h (0x%h) DASM(%h)\n",
           pc64, rvfi_i[i].insn, rvfi_i[i].insn);
         // Destination register information
-        $fwrite(f, "%h 0x%h (0x%h)",
-          rvfi_i[i].mode, pc64, rvfi_i[i].insn);
+        if (rvfi_i[i].insn[1:0] != 2'b11) begin
+          $fwrite(f, "%h 0x%h (0x%h)",
+            rvfi_i[i].mode, pc64, rvfi_i[i].insn[15:0]);
+        end else begin
+          $fwrite(f, "%h 0x%h (0x%h)",
+            rvfi_i[i].mode, pc64, rvfi_i[i].insn);
+        end
         // Decode instruction to know if destination register is FP register.
         // Handle both uncompressed and compressed instructions.
         if ( rvfi_i[i].insn[6:0] == 7'b1001111 ||
@@ -105,25 +110,32 @@ module rvfi_tracer #(
             (rvfi_i[i].insn[6:0] == 7'b1010011 && rvfi_i[i].insn[31:26] != 6'b111000
                                                && rvfi_i[i].insn[31:26] != 6'b101000
                                                && rvfi_i[i].insn[31:26] != 6'b110000) ||
-            // Compressed instructions: FP loads in quadrants 0 and 2
-            (rvfi_i[i].insn[0] == 1'b0 && ((riscv::XLEN == 64 && rvfi_i[i].insn[15:13] == 3'b001 /* c.fld, c.fldsp */ ) ||
-                                           (riscv::XLEN == 32 && rvfi_i[i].insn[15:13] == 3'b011 /* c.flw, c.flwsp */ ))))
+            (rvfi_i[i].insn[0] == 1'b0 && ((rvfi_i[i].insn[15:13] == 3'b001 && riscv::XLEN == 64) ||
+                                           (rvfi_i[i].insn[15:13] == 3'b011 && riscv::XLEN == 32) )))
           $fwrite(f, " f%d 0x%h\n",
             rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
         else if (rvfi_i[i].rd_addr != 0) begin
+          if (rvfi_i[i].mem_rmask != 0) begin
+            $fwrite(f, " x%d 0x%h mem 0x%h\n",
+              rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata, rvfi_i[i].mem_addr);
+          end else begin
           $fwrite(f, " x%d 0x%h\n",
             rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
-        end else $fwrite(f, "\n");
-
-        // If there was a write of non-zero value into (the lower half of) tohost
-        // with bit 0 set, terminate the simulation.
-        if (store_w_d_insn[i] &&
-            prev_write_into_tohost[i] &&
-            value_in_tohost[i][0] == 1'b1) begin
-          $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", value_in_tohost[i], pc64);
-          dtm_set_exitcode(value_in_tohost[i]);
-          $finish(1);
-          $finish(1);
+          end
+        end else begin
+          if (rvfi_i[i].mem_wmask != 0) begin
+            $fwrite(f, " mem 0x%h 0x%h\n",
+              rvfi_i[i].mem_addr, rvfi_i[i].mem_wdata);
+            if (rvfi_[i].mem_addr == TOHOST_ADDR &&
+                rvfi_i[i].mem_wdata != '0) begin
+              $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", value_in_tohost[i], pc64);
+              dtm_set_exitcode(value_in_tohost[i]);
+              $finish(1);
+              $finish(1);
+            end
+          end else begin
+            $fwrite(f, "\n");
+          end
         end
       end else if (rvfi_i[i].trap)
         $fwrite(f, "exception : 0x%h\n", pc64);
