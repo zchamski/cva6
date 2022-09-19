@@ -126,7 +126,7 @@ module rvfi_tracer #(
           if (rvfi_i[i].mem_wmask != 0) begin
             $fwrite(f, " mem 0x%h 0x%h\n",
               rvfi_i[i].mem_addr, rvfi_i[i].mem_wdata);
-            if (rvfi_[i].mem_addr == TOHOST_ADDR &&
+            if (rvfi_i[i].mem_addr == TOHOST_ADDR &&
                 rvfi_i[i].mem_wdata != '0) begin
               $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", value_in_tohost[i], pc64);
               dtm_set_exitcode(value_in_tohost[i]);
