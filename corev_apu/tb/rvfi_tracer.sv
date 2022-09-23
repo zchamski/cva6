@@ -78,32 +78,27 @@ module rvfi_tracer #(
                                                && rvfi_i[i].insn[31:26] != 6'b101000
                                                && rvfi_i[i].insn[31:26] != 6'b110000) ||
             (rvfi_i[i].insn[0] == 1'b0 && ((rvfi_i[i].insn[15:13] == 3'b001 && riscv::XLEN == 64) ||
-                                           (rvfi_i[i].insn[15:13] == 3'b011 && riscv::XLEN == 32) )))
-          $fwrite(f, " f%d 0x%h\n",
-            rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
-        else if (rvfi_i[i].rd_addr != 0) begin
+                                           (rvfi_i[i].insn[15:13] == 3'b011 && riscv::XLEN == 32) ))) begin
+          $fwrite(f, " f%d 0x%h", rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
+        end else if (rvfi_i[i].rd_addr != 0) begin
+          $fwrite(f, " x%d 0x%h", rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
           if (rvfi_i[i].mem_rmask != 0) begin
-            $fwrite(f, " x%d 0x%h mem 0x%h\n",
-              rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata, rvfi_i[i].mem_addr);
-          end else begin
-          $fwrite(f, " x%d 0x%h\n",
-            rvfi_i[i].rd_addr, rvfi_i[i].rd_wdata);
+            $fwrite(f, " mem 0x%h", rvfi_i[i].mem_addr);
           end
         end else begin
           if (rvfi_i[i].mem_wmask != 0) begin
-            $fwrite(f, " mem 0x%h 0x%h\n",
-              rvfi_i[i].mem_addr, rvfi_i[i].mem_wdata);
+            $fwrite(f, " mem 0x%h 0x%h", rvfi_i[i].mem_addr, rvfi_i[i].mem_wdata);
             if (rvfi_i[i].mem_addr == TOHOST_ADDR &&
                 rvfi_i[i].mem_wdata != '0) begin
+              $fwrite(f, "\n");
               $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", rvfi_i[i].mem_wdata, pc64);
               dtm_set_exitcode(rvfi_i[i].mem_wdata);
               $finish(1);
               $finish(1);
             end
-          end else begin
-            $fwrite(f, "\n");
           end
         end
+        $fwrite(f, "\n");
       end else if (rvfi_i[i].trap)
         $fwrite(f, "exception : 0x%h\n", pc64);
     end
