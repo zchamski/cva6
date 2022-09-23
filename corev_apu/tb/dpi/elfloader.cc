@@ -19,6 +19,9 @@
 #define SHT_PROGBITS 0x1
 #define SHT_GROUP 0x11
 
+// Name of the ELF file (NULL if not loaded yet or invalid)
+const char *elf_filename = NULL;
+
 // address and size
 std::vector<std::pair<reg_t, reg_t>> sections;
 std::map<std::string, uint64_t> symbols;
@@ -34,6 +37,32 @@ void write (uint64_t address, uint64_t len, uint8_t* buf) {
         mem.push_back(buf[i]);
     }
     mems.insert(std::make_pair(address, mem));
+}
+
+// Return the value of symbol 'tohost' if present in symbol table,
+// and NULL otherwise.
+extern "C" unsigned long int dtm_get_tohost_addr()
+{
+  if (symbols.count("tohost")) {
+    return (unsigned long int) symbols["tohost"];
+  } else {
+    if (elf_filename)
+      std::cerr << "### Symbol 'tohost' not present in ELF file '" << elf_filename << "'";
+    else
+      std::cerr << "### ELF file not loaded";
+    std::cerr << "\n### Termination possible only by timeout or Ctrl-C!\n";
+    return 0;
+  }
+}
+
+// Pass exit code of the test to the sim environment.
+// The code follows HTIF conventions:
+// - code[0]        == 1 ('test result' marker instead of a payload pointer)
+// - code[XLEN-1:1] == actual return value of test
+extern "C" void dtm_set_exitcode(unsigned long int code)
+{
+  std::cerr << "### NOT IMPLEMENTED YET: pass return code " << std::dec << code
+	    << "(0x" << std::hex << code << std::dec << ") to environment\n";
 }
 
 // Communicate the section address and len
@@ -67,7 +96,9 @@ extern "C" void read_elf(const char* filename) {
     struct stat s;
     assert(fd != -1);
     if (fstat(fd, &s) < 0)
-    abort();
+        abort();
+    // 'filename' designates a valid file.
+    elf_filename = filename;
     size_t size = s.st_size;
 
     char* buf = (char*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
