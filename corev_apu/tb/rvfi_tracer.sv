@@ -26,9 +26,6 @@ module rvfi_tracer #(
   int f;
   int i;
   int unsigned SIM_FINISH;
-  logic prev_write_into_tohost[NR_COMMIT_PORTS-1:0];
-  logic [riscv::XLEN-1:0] value_in_tohost[NR_COMMIT_PORTS-1:0];
-  logic store_w_d_insn[NR_COMMIT_PORTS-1:0];
 
   initial begin
     f = $fopen($sformatf("trace_rvfi_hart_%h.dasm", HART_ID), "w");
@@ -38,12 +35,6 @@ module rvfi_tracer #(
       $display("*** No valid address of 'tohost' (tohost == 0x%h), termination possible only by timeout or Ctrl-C!\n", TOHOST_ADDR);
       $fwrite(f, "*** No valid address of 'tohost' (tohost == 0x%h), termination possible only by timeout or Ctrl-C!\n", TOHOST_ADDR);
     end
-
-    // No termination condition at init.
-    for (i = 0; i < NR_COMMIT_PORTS-1; i++)
-      value_in_tohost[i] = '0;
-      prev_write_into_tohost[i] = 1'b0;
-      store_w_d_insn[i] = 1'b0;
   end
 
   final $fclose(f);
@@ -61,30 +52,6 @@ module rvfi_tracer #(
       // - 32 bits: upon SW to TOHOST_ADDR with bit 0 of MEM_WDATA == 1'b1,
       //   FORNOW no check is done on SW to TOHOST_ADDR+4 (bit 0 of tohost == 1'b1
       //   implies upper 16 bits of the upper word of tohost should be 16'b0.)
-
-      // TOHOST is assumed aligned on an XLEN-bit boundary.
-
-      // Detect ANY write of non-zero value into tohost (64b: full dword, 32b: lower word).
-      // Postpone assignment to end of cycle for situations where mem_addr and mem_wdata
-      // are asserted for one cycle only and deasserted when 'valid' gets asserted.  This
-      // occurs for compressed writes.
-      if (rvfi_i[i].mem_addr == TOHOST_ADDR &&
-          rvfi_i[i].mem_wmask != '0 &&
-          rvfi_i[i].mem_wdata != '0) begin
-        prev_write_into_tohost[i] <= 1'b1;
-        value_in_tohost[i] <= rvfi_i[i].mem_wdata;
-      end
-
-      // Store insn detection: set 'store_w_d_insn[i]' if current insn is a word
-      // or dword store. The insn does not need to be marked valid.
-      // Check for uncompressed and compressed SD/SW insns.
-      if ((rvfi_i[i].insn[6:0] == 7'b0100011 && (rvfi_i[i].insn[14:12] == 3'b011   ||
-                                                  rvfi_i[i].insn[14:12] == 3'b010)) ||
-          (rvfi_i[i].insn[1:0] == 2'b00      && ((rvfi_i[i].insn[15:13] == 3'b111 && riscv::XLEN == 64) ||
-                                                  rvfi_i[i].insn[15:13] == 3'b110)))
-        store_w_d_insn[i] = 1;
-      else
-        store_w_d_insn[i] = 0;
 
       pc64 = {{riscv::XLEN-riscv::VLEN{rvfi_i[i].pc_rdata[riscv::VLEN-1]}}, rvfi_i[i].pc_rdata};
       // print the instruction information if the instruction is valid or a trap is taken
@@ -128,8 +95,8 @@ module rvfi_tracer #(
               rvfi_i[i].mem_addr, rvfi_i[i].mem_wdata);
             if (rvfi_i[i].mem_addr == TOHOST_ADDR &&
                 rvfi_i[i].mem_wdata != '0) begin
-              $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", value_in_tohost[i], pc64);
-              dtm_set_exitcode(value_in_tohost[i]);
+              $display(">>> TERMINATING with exit value 0x%h at PC 0x%h\n", rvfi_i[i].mem_wdata, pc64);
+              dtm_set_exitcode(rvfi_i[i].mem_wdata);
               $finish(1);
               $finish(1);
             end
