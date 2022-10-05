@@ -142,7 +142,7 @@ CFLAGS := -I$(QUESTASIM_HOME)/include         \
           -I$(RISCV)/include                  \
           -I$(SPIKE_ROOT)/include             \
           $(if $(DROMAJO), -I../corev_apu/tb/dromajo/src,) \
-          -std=c++11 -I../corev_apu/tb/dpi -O3
+          -std=c++11 -I../corev_apu/tb/dpi -Og -ggdb
 
 ifdef XCELIUM_HOME
 CFLAGS += -I$(XCELIUM_HOME)/tools/include
@@ -582,7 +582,7 @@ xrun-check-benchmarks:
 xrun-ci: xrun-asm-tests xrun-amo-tests xrun-mul-tests xrun-fp-tests xrun-benchmarks
 
 # verilator-specific
-verilate_command := $(verilator)                                                                                 \
+verilate_command := $(verilator) --no-timing                                                                     \
                     $(filter-out %.vhd, $(ariane_pkg))                                                           \
                     $(filter-out core/fpu_wrap.sv, $(filter-out %.vhd, $(src)))                                  \
                     $(copro_src)                                                                                 \
@@ -612,7 +612,7 @@ verilate_command := $(verilator)                                                
                     -CFLAGS "$(CFLAGS)$(if $(PROFILE), -g -pg,) $(if $(DROMAJO), -DDROMAJO=1,) -DVL_DEBUG"       \
                     -Wall --cc  --vpi                                                                            \
                     $(list_incdir) --top-module ariane_testharness                                               \
-					--threads-dpi none                                                       \
+                    --threads-dpi none                                                                           \
                     --Mdir $(ver-library) $(USER_VL_FLAGS)                                                       \
                     --exe corev_apu/tb/ariane_tb.cpp corev_apu/tb/dpi/SimDTM.cc corev_apu/tb/dpi/SimJTAG.cc      \
                     corev_apu/tb/dpi/remote_bitbang.cc corev_apu/tb/dpi/msim_helper.cc $(if $(DROMAJO), corev_apu/tb/dpi/dromajo_cosim_dpi.cc,)
