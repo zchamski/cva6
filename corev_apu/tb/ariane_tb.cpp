@@ -86,7 +86,7 @@ EMULATOR DEBUG OPTIONS (only supported in debug build -- try `make debug`)\n",
 #endif
   fputs("\
   -v, --vcd=FILE,          Write vcd trace to FILE (or '-' for stdout)\n\
-  -f, --fst-trace=FILE,    Write fst trace to FILE\n\
+  -f, --fst=FILE,          Write fst trace to FILE\n\
   -p,                      Print performance statistic at end of test\n\
 ", stdout);
   // fputs("\n" PLUSARG_USAGE_OPTIONS, stdout);
@@ -155,13 +155,13 @@ int main(int argc, char **argv) {
 #if VM_TRACE
       {"vcd",         required_argument, 0, 'v' },
       {"dump-start",  required_argument, 0, 'x' },
-      {"fst-trace",   required_argument, 0, 'f' },
+      {"fst",         required_argument, 0, 'f' },
 #endif
       HTIF_LONG_OPTIONS
     };
     int option_index = 0;
 #if VM_TRACE
-    int c = getopt_long(argc, argv, "-chpm:s:r:vf:Vx:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "-chpm:s:r:v:f:Vx:", long_options, &option_index);
 #else
     int c = getopt_long(argc, argv, "-chpm:s:r:V", long_options, &option_index);
 #endif
@@ -191,7 +191,6 @@ int main(int argc, char **argv) {
       }
       case 'f': {
         fst_fname = optarg;
-        std::cerr << "### Request for FST waveform trace into file '" << fst_fname << "'\n";
         break;
       }
       case 'x': start = atoll(optarg);      break;
@@ -318,18 +317,23 @@ done_processing:
 #if VM_TRACE_FST
   std::unique_ptr<VerilatedFstC> tfp(new VerilatedFstC());
   if (fst_fname) {
-    std::cerr << "### Starting FST waveform dump into file '" << fst_fname << "'...\n";
+    std::cerr << "Starting FST waveform dump into file '" << fst_fname << "'...\n";
     top->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
     tfp->open(fst_fname);
   }
+  else
+    std::cerr << "No explicit FST file name supplied, using RTL defaults.\n";
 #else
   std::unique_ptr<VerilatedVcdFILE> vcdfd(new VerilatedVcdFILE(vcdfile));
   std::unique_ptr<VerilatedVcdC> tfp(new VerilatedVcdC(vcdfd.get()));
   if (vcdfile) {
-    std::cerr << "### Starting VCD waveform dump ...\n";
+    std::cerr << "Starting VCD waveform dump ...\n";
     top->trace(tfp.get(), 99);  // Trace 99 levels of hierarchy
     tfp->open("");
   }
+  else
+    std::cerr << "No explicit VCD file name supplied, using RTL defaults.\n";
+#endif
 #endif
 #endif
 
@@ -339,11 +343,13 @@ done_processing:
     top->rtc_i = 0;
     top->eval();
 #if VM_TRACE
+    if (vcdfile || fst_fname)
       tfp->dump(static_cast<vluint64_t>(main_time * 2));
 #endif
     top->clk_i = 1;
     top->eval();
 #if VM_TRACE
+    if (vcdfile || fst_fname)
       tfp->dump(static_cast<vluint64_t>(main_time * 2 + 1));
 #endif
     main_time++;
@@ -364,15 +370,14 @@ done_processing:
     top->clk_i = 0;
     top->eval();
 #if VM_TRACE
-    // dump = tfp && trace_count >= start;
-    // if (dump)
+    if (vcdfile || fst_fname)
       tfp->dump(static_cast<vluint64_t>(main_time * 2));
 #endif
 
     top->clk_i = 1;
     top->eval();
 #if VM_TRACE
-    // if (dump)
+    if (vcdfile || fst_fname)
       tfp->dump(static_cast<vluint64_t>(main_time * 2 + 1));
 #endif
     // toggle RTC
