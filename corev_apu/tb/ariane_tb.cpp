@@ -335,7 +335,6 @@ done_processing:
     std::cerr << "No explicit VCD file name supplied, using RTL defaults.\n";
 #endif
 #endif
-#endif
 
   for (int i = 0; i < 10; i++) {
     top->rst_ni = 0;
