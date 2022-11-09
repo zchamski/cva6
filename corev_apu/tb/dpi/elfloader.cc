@@ -20,7 +20,7 @@
 #define SHT_GROUP 0x11
 
 // Name of the ELF file (NULL if not loaded yet or invalid)
-const char *elf_filename = NULL;
+const char *loaded_filename = NULL;
 
 // address and size
 std::vector<std::pair<reg_t, reg_t>> sections;
@@ -39,15 +39,31 @@ void write (uint64_t address, uint64_t len, uint8_t* buf) {
     mems.insert(std::make_pair(address, mem));
 }
 
+extern "C" void read_elf(const char *);
+
 // Return the value of symbol 'tohost' if present in symbol table,
 // and NULL otherwise.
-extern "C" unsigned long int dtm_get_tohost_addr()
+extern "C" unsigned long int dtm_get_tohost_addr(const char *filename)
 {
+  // Read the file if not already done: we may have been called from an 'initial'
+  // block of RVFI_TRACER before actual memory preload starts.
+  if (!loaded_filename)
+    read_elf(filename);
+  else if (strcmp(filename, loaded_filename)) {
+    std::cerr << "*** Disctinct, multiple PRELOAD values, exiting!\n";
+    exit(1);
+  }
+
+  std::cerr << "### Dumping symbol table of '" << filename << "' (size " << symbols.size() << "elts):\n";
+  for (auto i : symbols) {
+    std::cerr << "### Symbol '" << i.first << "', value = 0x" << std::hex << i.second << std::dec << std::endl;
+  }
+
   if (symbols.count("tohost")) {
     return (unsigned long int) symbols["tohost"];
   } else {
-    if (elf_filename)
-      std::cerr << "### Symbol 'tohost' not present in ELF file '" << elf_filename << "'";
+    if (loaded_filename)
+      std::cerr << "### Symbol 'tohost' not present in ELF file '" << loaded_filename << "'";
     else
       std::cerr << "### ELF file not loaded";
     std::cerr << "\n### Termination possible only by timeout or Ctrl-C!\n";
@@ -92,13 +108,18 @@ extern "C" void read_section (long long address, const svOpenArrayHandle buffer)
 }
 
 extern "C" void read_elf(const char* filename) {
+    // Check if a file of the same name was loaded already
+    // and skip loading if that's the case.
+    if (loaded_filename && !strcmp(filename, loaded_filename))
+      return;
+
     int fd = open(filename, O_RDONLY);
     struct stat s;
     assert(fd != -1);
     if (fstat(fd, &s) < 0)
         abort();
     // 'filename' designates a valid file.
-    elf_filename = filename;
+    loaded_filename = filename;
     size_t size = s.st_size;
 
     char* buf = (char*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);

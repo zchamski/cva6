@@ -70,8 +70,14 @@ extern "C" void dtm_set_exitcode(unsigned int code)
   dtm->set_exitcode(code);
 }
 
-extern "C" unsigned long int dtm_get_tohost_addr(void)
+extern "C" unsigned long int dtm_get_tohost_addr(const char *binary /* unused when using HTIF */)
 {
-  std::cerr << "### Calling dtm->get_tohost_addr(), value returned is 0x" << std::hex << dtm->get_tohost_addr() << std::dec << "\n";
+  if (!dtm) {
+    std::cerr << "*** Cannot determine DTM 'tohost' address without a running DTM!\n";
+    return 0;
+  }
+
+  unsigned long int tohost_addr = dtm->get_tohost_addr();
+  std::cerr << "### Calling dtm->get_tohost_addr() for file '" << binary << "', value returned is 0x" << std::hex << tohost_addr << std::dec << "\n";
   return dtm->get_tohost_addr();
 }

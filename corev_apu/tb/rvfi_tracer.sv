@@ -9,7 +9,7 @@
 
 // Import the DTM exit code setter function.
 import "DPI-C" function void dtm_set_exitcode(input longint code);
-import "DPI-C" function longint dtm_get_tohost_addr();
+import "DPI-C" function longint dtm_get_tohost_addr(string binary);
 
 module rvfi_tracer #(
   parameter logic [7:0] HART_ID      = '0,
@@ -22,23 +22,34 @@ module rvfi_tracer #(
   input rvfi_pkg::rvfi_instr_t[NR_COMMIT_PORTS-1:0]           rvfi_i
 );
 
+  string binary ="";
   logic[riscv::XLEN-1:0] TOHOST_ADDR;
   int f;
-  int i;
   int unsigned SIM_FINISH;
 
   initial begin
     f = $fopen($sformatf("trace_rvfi_hart_%h.dasm", HART_ID), "w");
     if (!$value$plusargs("time_out=%d", SIM_FINISH)) SIM_FINISH = 2000000;
-    TOHOST_ADDR = dtm_get_tohost_addr();
+    if (!$value$plusargs("tohost_addr=%h", TOHOST_ADDR)) begin
+      if (!$value$plusargs("PRELOAD=%s", binary)) begin
+        $display("*** rvfi_tracer: Cannot determine name of ELF binary and no explicit 'tohost' address given!\n");
+        $fwrite(f, "*** rvfi_tracer: Cannot determine name of ELF binary and no explicit 'tohost' address given!\n");
+      end else begin
+        $display("### rvfi_tracer: Calling dtm_get_tohost_addr('%s')...\n", binary);
+        $fwrite(f, "### rvfi_tracer: Calling dtm_get_tohost_addr('%s')...\n", binary);
+        TOHOST_ADDR = dtm_get_tohost_addr(binary);
+      end
+    end
     if (TOHOST_ADDR == '0) begin
       $display("*** No valid address of 'tohost' (tohost == 0x%h), termination possible only by timeout or Ctrl-C!\n", TOHOST_ADDR);
       $fwrite(f, "*** No valid address of 'tohost' (tohost == 0x%h), termination possible only by timeout or Ctrl-C!\n", TOHOST_ADDR);
+    end else begin
+      $display("NOTICE: Using 'tohost' address 0x%h\n", TOHOST_ADDR);
+      $fwrite(f, "NOTICE: Using 'tohost' address 0x%h\n", TOHOST_ADDR);
     end
   end
 
   final $fclose(f);
-
   logic [31:0] cycles;
 
   // Generate the trace based on RVFI
