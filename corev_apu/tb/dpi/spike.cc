@@ -23,24 +23,27 @@
 #include <iostream>
 
 sim_spike_t* sim;
-std::vector<std::pair<reg_t, mem_t*>> mem;
+std::vector<std::pair<reg_t, mem_t*>> mem_cuts;
 commit_log_t commit_log_val;
 
 #define SHT_PROGBITS 0x1
 #define SHT_GROUP 0x11
 
-void write_spike_mem (reg_t address, size_t len, uint8_t* buf) {
-    // memcpy(mem[0].second->contents() + (address & ~(1 << 31)), buf,len);
-    mem[0].second->store(address, len, buf);
+#define BOOTROM_BASE 0x10000
+#define BOOTROM_SIZE 0x1000
+
+// ADDRESS is relative to base address of cut MEM.
+bool write_spike_mem (mem_t* mem, reg_t address, size_t len, uint8_t* buf) {
+  return mem->store(address, len, buf);
 }
 
-void read_elf(const char* filename) {
+void read_elf(mem_t* mem_cut, reg_t base_addr, const char* filename) {
     std::cerr << "[Spike Tandem] Loading binary into Spike memory...\n";
     int fd = open(filename, O_RDONLY);
     struct stat s;
     assert(fd != -1);
     if (fstat(fd, &s) < 0)
-    abort();
+      abort();
     size_t size = s.st_size;
 
     char* buf = (char*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -51,9 +54,7 @@ void read_elf(const char* filename) {
     const Elf64_Ehdr* eh64 = (const Elf64_Ehdr*)buf;
     assert(IS_ELF32(*eh64) || IS_ELF64(*eh64));
 
-    std::vector<uint8_t> zeros;
-
-    #define LOAD_ELF(ehdr_t, phdr_t, shdr_t, sym_t) do { \
+#define LOAD_ELF(ehdr_t, phdr_t, shdr_t, sym_t) do {	\
     ehdr_t* eh = (ehdr_t*)buf; \
     phdr_t* ph = (phdr_t*)(buf + eh->e_phoff); \
     assert(size >= eh->e_phoff + eh->e_phnum*sizeof(*ph)); \
@@ -61,9 +62,9 @@ void read_elf(const char* filename) {
       if(ph[i].p_type == PT_LOAD && ph[i].p_memsz) { \
         if (ph[i].p_filesz) { \
           assert(size >= ph[i].p_offset + ph[i].p_filesz); \
-          write_spike_mem(ph[i].p_paddr, ph[i].p_filesz, (uint8_t*)buf + ph[i].p_offset); \
+          if (!write_spike_mem(mem_cut, reg_t(ph[i].p_paddr) - base_addr, ph[i].p_filesz, (uint8_t*)buf + ph[i].p_offset)) \
+	    std::cerr << "[Spike Tandem] *** ERROR: Failed to load ELF segment into memory!\n"; \
         } \
-        zeros.resize(ph[i].p_memsz - ph[i].p_filesz); \
       } \
     } \
     shdr_t* sh = (shdr_t*)(buf + eh->e_shoff); \
@@ -102,24 +103,25 @@ void read_elf(const char* filename) {
     std::cerr << "[Spike Tandem] ...done.\n";
 }
 
-void mem_zero(mem_t *mem, reg_t base_addr)
+bool mem_zero(mem_t *mem, reg_t base_addr)
 {
-  std::cerr << "[Spike Tandem] Zero-ing out Spike memory...\n";
+  std::cerr << "[Spike Tandem] Zero-ing out Spike memory cut at 0x"
+	    << std::hex << base_addr << "...\n";
   // Spike does allocate-on-write with a sparse memory map,
   // forcing the use of Spike primitives (mem_t::store etc.)
   // to allocate the pages in map.
+  // Addressing in mem_t::store/::load is relative to base address of MEM.
   int written = 0;
-  unsigned char zero_page[PGSIZE];
-  memset(zero_page, 0, PGSIZE);
+  unsigned char zero_page[PGSIZE] = { 0 };
 
-  if (base_addr % PGSIZE) {
-    std::cerr << "*** [Spike Tandem] ELABORATION ERROR: Memory base address 0x" << std::hex << base_addr << " not a multiple of PGSIZE (" << std::dec << PGSIZE << "), exiting!\n";
-    exit(1);
-  }
-  for (auto n = base_addr; n < base_addr + mem->size(); n += PGSIZE) {
-    mem->store(reg_t(n), std::min(mem->size() - written, PGSIZE), (const unsigned char*) zero_page);
+  for (auto n = 0; n < mem->size(); n += PGSIZE) {
+    if (!mem->store(reg_t(n),
+		    std::min(mem->size() - written, PGSIZE),
+		    (const unsigned char*) zero_page))
+      return false;
     written += std::min(mem->size() - written, PGSIZE);
   }
+  return true;
 }
 
 std::vector<mem_cfg_t> memory_map;
@@ -127,8 +129,11 @@ std::vector<mem_cfg_t> memory_map;
 extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned int size)
 {
   std::cerr << "[Spike Tandem] Starting 'spike_create'...\n" ;
-  // FIXME TODO Create a simple memory map with a single mem of 2GB.
-  // It should take into account the actual RTL memory map.
+  // Create a simple memory map with
+  // - a boot ROM of BOOTROM_SIZE @ BOOTROM_BASE
+  // - a single DRAM of 'size' bytes @ 'dram_base'.
+  // FIXME TODO It should take into account the actual RTL memory map.
+  memory_map.push_back(mem_cfg_t(reg_t(BOOTROM_BASE), reg_t(BOOTROM_SIZE)));
   memory_map.push_back(mem_cfg_t(reg_t(dram_base), reg_t(size)));
 
   cfg_t *config = new
@@ -147,6 +152,7 @@ extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned 
 
   std::cerr << "[Spike Tandem] ISA  = '" << config->isa() << "'\n" ;
   std::cerr << "[Spike Tandem] priv = '" << config->priv() << "'\n" ;
+
   // Define the default set of harts with their associated IDs.
   // If there are multiple IDs, the vector must be sorted in ascending
   // order and w/o duplicates, see 'parse_hartids' in spike_main/spike.cc.
@@ -157,11 +163,15 @@ extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned 
   default_hartids.push_back(0);
   config->hartids = default_hartids;
 
-  mem.push_back(std::make_pair(reg_t(dram_base), new mem_t(size)));
-  // Zero out memory.
-  mem_zero(mem[0].second, mem[0].first);
+  // Instantiate the ROM.  Allocation will be rounded up to a multiple of page size.
+  auto bootrom = std::make_pair(reg_t(BOOTROM_BASE), new mem_t(BOOTROM_SIZE));
 
-  read_elf(filename);
+  // Instantiate DRAM.
+  auto dram = std::make_pair(reg_t(dram_base), new mem_t(size));
+
+  // Add the memory cuts to the system configurataion.
+  mem_cuts.push_back(bootrom);
+  mem_cuts.push_back(dram);
 
   if (!sim) {
     std::vector<std::string> htif_args = sanitize_args();
@@ -172,7 +182,31 @@ extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned 
       std::cerr << "  " << s << ",\n";
     std::cerr << "}\n";
 
-    sim = new sim_spike_t((const cfg_t *)config, mem, htif_args, 2000000 /* Should be TIME_OUT value */);
+    sim = new sim_spike_t((const cfg_t *)config, mem_cuts, htif_args, 2000000 /* Should be TIME_OUT value */);
+
+    std::cerr << "[Spike Tandem] Initializing memories...\n";
+    uint8_t rom_check_buffer[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    // Populate the ROM.  Reset vector size is in 32-bit words and must be scaled.
+#include "corev_apu/bootrom/bootrom.h"
+    if (!bootrom.second->store(reg_t(0),
+			       reset_vec_size << 2,
+			       (const uint8_t *) reset_vec))
+      std::cerr << "[Spike Tandem] *** ERROR: Failed to initialize ROM!\n";
+    bootrom.second->load(reg_t(0), 8, rom_check_buffer);
+    fprintf(stderr, "[SPIKE] ROM content head(8) = %02x %02x %02x %02x %02x %02x %02x %02x\n",
+	    rom_check_buffer[0], rom_check_buffer[1], rom_check_buffer[2], rom_check_buffer[3],
+	    rom_check_buffer[4], rom_check_buffer[5], rom_check_buffer[6], rom_check_buffer[7]);
+
+    // Zero out DRAM memory content.
+    if (!mem_zero(dram.second, dram.first))
+      std::cerr << "[Spike Tandem] *** ERROR: Failed to clear DRAM!\n";
+
+    // Load the binary into DRAM.
+    read_elf(dram.second, dram_base, filename);
+
+    // Disable the debug mode.
+    sim->sim_t::set_debug(false);
     std::cerr << "[Spike Tandem] Finished 'spike_create'...\n" ;
   }
 }
@@ -188,8 +222,8 @@ extern "C" void spike_tick(commit_log_t* commit_log)
   commit_log->is_fp = commit_log_val.is_fp;
   commit_log->rd = commit_log_val.rd;
   commit_log->data = commit_log_val.data;
-  // TODO FIXME Following two values are not directly accessible in new Spike API.
-  // commit_log->instr = commit_log_val.instr;
+  commit_log->instr = commit_log_val.instr;
+  // TODO FIXME Following value is not directly accessible in new Spike API.
   // commit_log->was_exception = commit_log_val.was_exception;
 }
 
