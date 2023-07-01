@@ -34,7 +34,7 @@ typedef struct
 } commit_log_t;
 
 // this class encapsulates the processors and memory in a RISC-V machine.
-class sim_spike_t : sim_t
+class sim_spike_t : public sim_t
 {
 public:
   sim_spike_t(const cfg_t *cfg,
