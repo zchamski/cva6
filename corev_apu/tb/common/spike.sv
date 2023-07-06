@@ -12,11 +12,12 @@
 // Date: 3/11/2018
 // Description: Wrapped Spike Model for Tandem Verification
 
+import ariane_pkg::*;
 import uvm_pkg::*;
 
 `include "uvm_macros.svh"
 
-import "DPI-C" function int spike_create(string filename, longint unsigned dram_base, int unsigned size);
+import "DPI-C" function int spike_create(string filename, string rtl_isa, longint unsigned dram_base, int unsigned size);
 
 typedef riscv::commit_log_t riscv_commit_log_t;
 import "DPI-C" function void spike_tick(output riscv_commit_log_t commit_log);
@@ -33,6 +34,7 @@ module spike #(
 );
     static uvm_cmdline_processor uvcl = uvm_cmdline_processor::get_inst();
     string binary = "";
+    string rtl_isa = "";
 
     logic fake_clk;
     logic clint_tick_q, clint_tick_qq, clint_tick_qqq, clint_tick_qqqq;
@@ -41,7 +43,19 @@ module spike #(
         `uvm_info("Spike Tandem", "Setting up Spike...", UVM_NONE);
         void'(uvcl.get_arg_value("+PRELOAD=", binary));
         assert(binary != "") else $error("We need a preloaded binary for tandem verification");
-        void'(spike_create(binary, DramBase, Size));
+        // ISA string format: RV<XLEN>IM?A?C?F?D?C?(_<ext>)* (FORNOW no RV64GC)
+        // Base string
+        rtl_isa = $sformatf("RV%-2dIM%s%s%s%s",
+                            riscv::XLEN,
+                            ariane_pkg::RVA ? "A" : "",
+                            ariane_pkg::RVF ? "F" : "",
+                            ariane_pkg::RVD ? "D" : "",
+                            ariane_pkg::RVC ? "C" : "");
+        if (ariane_pkg::BITMANIP) begin
+            rtl_isa = $sformatf("%s_zba_zbb_zbc_zbs", rtl_isa);
+        end
+        // TODO: build the ISA string with extensions
+        void'(spike_create(binary, rtl_isa, DramBase, Size));
     end
 
     riscv_commit_log_t commit_log;
@@ -125,16 +139,18 @@ module spike #(
                             // $display("\x1B[37m%h === %h\x1B[0m", commit_instr_i[i].rd, commit_log.rd);
                             assert (rvfi_i[i].rd_addr[4:0] === commit_log.rd[4:0]) else begin
                                 $warning("\x1B[38;5;221m[Tandem] Destination register mismatch\x1B[0m");
-                                $display("\x1B[91mSpike: x%-4d @ PC 0x%16h\x1B[0m", commit_log.rd[4:0], commit_log.pc);
-                                $display("\x1B[91mCVA6:  x%-4d @ PC 0x%16h\x1B[0m", rvfi_i[i].rd_addr[4:0], pc64);
+                                $display("\x1B[91mSpike: x%-4d @ PC 0x%16h\x1B[0m",
+                                         commit_log.rd[4:0], commit_log.pc);
+                                $display("\x1B[91mCVA6:  x%-4d @ PC 0x%16h\x1B[0m",
+                                         rvfi_i[i].rd_addr[4:0], pc64);
                                 // $stop;
                             end
                             assert (rvfi_i[i].rd_wdata === commit_log.data) else begin
                                 $warning("\x1B[38;5;221m[Tandem] Write back data mismatch\x1B[0m");
                                 $display("\x1B[91mSpike: x%-4d <- 0x%16h @ PC 0x%16h\x1B[0m",
-					 commit_log.rd[4:0], commit_log.data, commit_log.pc);
+                                         commit_log.rd[4:0], commit_log.data, commit_log.pc);
                                 $display("\x1B[91mCVA6:  x%-4d <- 0x%16h @ PC 0x%16h\x1B[0m",
-					 rvfi_i[i].rd_addr[4:0], rvfi_i[i].rd_wdata, pc64);
+                                         rvfi_i[i].rd_addr[4:0], rvfi_i[i].rd_wdata, pc64);
                             end
                         end
                     end
