@@ -126,7 +126,7 @@ bool mem_zero(mem_t *mem, reg_t base_addr)
 
 std::vector<mem_cfg_t> memory_map;
 
-extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned int size)
+extern "C" void spike_create(const char* filename, const char* rtl_isa, uint64_t dram_base, unsigned int size)
 {
   std::cerr << "[Spike Tandem] Starting 'spike_create'...\n" ;
   // Create a simple memory map with
@@ -139,7 +139,7 @@ extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned 
   cfg_t *config = new
       cfg_t(/*default_initrd_bounds=*/std::make_pair((reg_t)0, (reg_t)0),
             /*default_bootargs=*/nullptr,
-            /*default_isa=*/DEFAULT_ISA,     // TODO FIXME Propagate the RTL configuration here
+            /*default_isa=*/rtl_isa,         // Built from the RTL configuration
             /*default_priv=*/DEFAULT_PRIV,   // TODO FIXME Ditto
             /*default_varch=*/DEFAULT_VARCH, // TODO FIXME Ditto
             /*default_misaligned=*/false,
@@ -214,9 +214,9 @@ extern "C" void spike_create(const char* filename, uint64_t dram_base, unsigned 
 // advance Spike and get the retired instruction
 extern "C" void spike_tick(commit_log_t* commit_log)
 {
-  std::cerr << "[Spike Tandem] tick()...\n";
+  // std::cerr << "[Spike Tandem] tick()...\n";
   commit_log_val = sim->tick(1);
-  std::cerr << "[Spike Tandem]   ... done.\n";
+  // std::cerr << "[Spike Tandem]   ... done.\n";
   commit_log->priv = commit_log_val.priv;
   commit_log->pc = commit_log_val.pc;
   commit_log->is_fp = commit_log_val.is_fp;

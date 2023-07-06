@@ -83,11 +83,11 @@ commit_log_t sim_spike_t::tick(size_t n)
   commit_log.priv = priv;
   commit_log.pc = pc;
   bool got_commit = false;
-  std::cerr << "[Spike Tandem] reg_commits.len() = " << std::dec << reg_commits.size() << "\n";
+  // std::cerr << "[Spike Tandem] reg_commits.len() = " << std::dec << reg_commits.size() << "\n";
   for (auto& reg : reg_commits) {
-    std::cerr << "[Spike Tandem] reg.first = 0x" << std::hex << reg.first << "\n";
-    std::cerr << "[Spike Tandem] reg.second.v[0] = 0x" << std::hex << reg.second.v[0] << "\n";
-    std::cerr << "[Spike Tandem] reg.second.v[1] = 0x" << std::hex << reg.second.v[1] << "\n";
+    // std::cerr << "[Spike Tandem] reg.first = 0x" << std::hex << reg.first << "\n";
+    // std::cerr << "[Spike Tandem] reg.second.v[0] = 0x" << std::hex << reg.second.v[0] << "\n";
+    // std::cerr << "[Spike Tandem] reg.second.v[1] = 0x" << std::hex << reg.second.v[1] << "\n";
 
     if (!got_commit) {
       commit_log.is_fp = reg.first & 0xf == 1;
@@ -100,9 +100,13 @@ commit_log_t sim_spike_t::tick(size_t n)
     }
   }
 
-  // TODO FIXME There's no direct access to the last executed insn anymore,
-  // only to the last FDE-ed (Fetched, Decoded and Executed) PC.
-  // commit_log.instr = get_core(0)->get_state()->last_insn;
+  // Remove sign extension applied by Spike in 32b mode.
+  if (get_core(0)->get_xlen() == 32) {
+    commit_log.pc &= 0xffffffffULL;
+    commit_log.data &= 0xffffffffULL;
+  }
+
+  // TODO FIXME There's no direct access to the exception status anymore.
   //commit_log.was_exception = get_core(0)->get_state()->was_exception;
 
   return commit_log;

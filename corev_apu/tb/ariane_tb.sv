@@ -60,6 +60,7 @@ module ariane_tb;
 
 `ifdef SPIKE_TANDEM
     spike #(
+        // TODO Pass CVA6 config as parameter, not via packages.
         .Size ( NUM_WORDS * 8 )
     ) i_spike (
         .clk_i,
