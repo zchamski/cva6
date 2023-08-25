@@ -144,6 +144,7 @@ endif
 
 # this list contains the standalone components
 src :=  core/include/$(target)_config_pkg.sv                                         \
+        core/include/rvfi_pkg.sv                                                     \
         corev_apu/src/ariane.sv                                                      \
         $(wildcard corev_apu/bootrom/*.sv)                                           \
         $(wildcard corev_apu/clint/*.sv)                                             \

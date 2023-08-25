@@ -94,7 +94,7 @@ module ariane_tb;
 `ifdef SPIKE_TANDEM
     spike #(
         .CVA6Cfg ( CVA6Cfg ),
-        .Size ( NUM_WORDS * 8 )
+        .rvfi_instr_t(rvfi_instr_t)
     ) i_spike (
         .clk_i,
         .rst_ni,
