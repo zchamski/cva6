@@ -507,7 +507,7 @@ module csr_regfile import ariane_pkg::*; #(
             end
             instret_d = instret;
             // increment the cycle count
-            if (ENABLE_CYCLE_COUNT && !mcountinhibit_q[0]) cycle_d = cycle_q + 1'b1;
+            if (!mcountinhibit_q[0]) cycle_d = cycle_q + 1'b1;
             else cycle_d = instret;
         end
 
@@ -972,8 +972,6 @@ module csr_regfile import ariane_pkg::*; #(
                 // set mtval or stval
                 stval_d        = (ariane_pkg::ZERO_TVAL
                                   && (ex_i.cause inside {
-                                    riscv::ILLEGAL_INSTR,
-                                    riscv::BREAKPOINT,
                                     riscv::ENV_CALL_UMODE,
                                     riscv::ENV_CALL_SMODE,
                                     riscv::ENV_CALL_MMODE
@@ -991,8 +989,6 @@ module csr_regfile import ariane_pkg::*; #(
                 // set mtval or stval
                 mtval_d        = (ariane_pkg::ZERO_TVAL
                                   && (ex_i.cause inside {
-                                    riscv::ILLEGAL_INSTR,
-                                    riscv::BREAKPOINT,
                                     riscv::ENV_CALL_UMODE,
                                     riscv::ENV_CALL_SMODE,
                                     riscv::ENV_CALL_MMODE

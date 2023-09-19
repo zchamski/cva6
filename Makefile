@@ -28,7 +28,7 @@ VMAP ?= vmap$(questa_version)
 verilator      ?= verilator
 # traget option
 target-options ?=
-# additional definess
+# additional defines
 defines        ?=
 # test name for torture runs (binary name)
 test-location  ?= output/test
@@ -58,8 +58,17 @@ ifndef RISCV
 $(error RISCV not set - please point your RISCV variable to your RISCV installation)
 endif
 
-# By default assume spike resides at the RISCV prefix.
-SPIKE_ROOT     ?= $(RISCV)
+# Spike tandem mode: default to environment setting (DISABLED if envariable SPIKE_TANDEM is not set).
+spike-tandem ?= $(SPIKE_TANDEM)
+
+# Rather than duplicating Spike in core-v-verif (CVV) and in RTL, use a common
+# version that resides in CVV/vendor/riscv/riscv-isa-sim.
+# This decision implies that Spike becomes an external dependency for CVA6, but
+# tandem simulation is a verification task rather than part of the RTL.
+# By default assume spike is installed at the SPIKE_INSTALL_DIR prefix.
+# Spike source code and include files are at SPIKE_ROOT.
+SPIKE_ROOT        ?= $(root-dir)/../../vendor/riscv/riscv-isa-sim
+SPIKE_INSTALL_DIR ?= $(root-dir)/../../tools/spike
 
 # setting additional xilinx board parameters for the selected board
 ifeq ($(BOARD), genesys2)
@@ -79,11 +88,13 @@ $(error Unknown board - please specify a supported FPGA board)
 endif
 
 # spike tandem verification
-ifdef spike-tandem
+ifneq ($(spike-tandem),)
     compile_flag += -define SPIKE_TANDEM
-    ifndef preload
-        $(error Tandem verification requires preloading)
-    endif
+    CFLAGS += -I. -I$(SPIKE_INSTALL_DIR)/include/riscv
+    defines += +SPIKE_TANDEM=1
+#    ifndef preload
+#        $(error Tandem verification requires preloading)
+#    endif
 endif
 
 # target takes one of the following cva6 hardware configuration:
@@ -113,7 +124,7 @@ test_pkg := $(wildcard tb/test/*/*sequence_pkg.sv*) \
 dpi := $(patsubst corev_apu/tb/dpi/%.cc, ${dpi-library}/%.o, $(wildcard corev_apu/tb/dpi/*.cc))
 
 # filter spike stuff if tandem is not activated
-ifndef spike-tandem
+ifeq ($(spike-tandem),)
     dpi := $(filter-out ${dpi-library}/spike.o ${dpi-library}/sim_spike.o, $(dpi))
 endif
 
@@ -122,7 +133,7 @@ dpi_hdr := $(addprefix $(root-dir), $(dpi_hdr))
 CFLAGS += -I$(QUESTASIM_HOME)/include         \
           -I$(VCS_HOME)/include               \
           -I$(RISCV)/include                  \
-          -I$(SPIKE_ROOT)/include             \
+          -I$(SPIKE_INSTALL_DIR)/include      \
           -std=c++17 -I../corev_apu/tb/dpi -O3
 
 ifdef XCELIUM_HOME
@@ -130,11 +141,6 @@ CFLAGS += -I$(XCELIUM_HOME)/tools/include
 else
 $(warning XCELIUM_HOME not set which is necessary for compiling DPIs when using XCELIUM)
 endif
-
-ifdef spike-tandem
-    CFLAGS += -Itb/riscv-isa-sim/install/include/spike
-endif
-
 
 # this list contains the standalone components
 src :=  core/include/$(target)_config_pkg.sv                                         \
@@ -188,6 +194,7 @@ src :=  core/include/$(target)_config_pkg.sv                                    
         corev_apu/tb/ariane_peripherals.sv                                           \
         corev_apu/tb/rvfi_tracer.sv                                                  \
         corev_apu/tb/common/uart.sv                                                  \
+        corev_apu/tb/common/mock_uart.sv                                             \
         corev_apu/tb/common/SimDTM.sv                                                \
         corev_apu/tb/common/SimJTAG.sv
 
@@ -204,7 +211,11 @@ fpga_src :=  $(wildcard corev_apu/fpga/src/*.sv) $(wildcard corev_apu/fpga/src/b
 fpga_src := $(addprefix $(root-dir), $(fpga_src))
 
 # look for testbenches
-tbs := core/include/$(target)_config_pkg.sv corev_apu/tb/ariane_tb.sv corev_apu/tb/ariane_testharness.sv
+tbs :=  core/include/$(target)_config_pkg.sv			\
+	corev_apu/tb/ariane_tb.sv				\
+        $(if $(spike-tandem),corev_apu/tb/common/spike.sv)	\
+	corev_apu/tb/ariane_testharness.sv
+
 tbs := $(addprefix $(root-dir), $(tbs))
 
 # RISCV asm tests and benchmark setup (used for CI)
@@ -257,7 +268,7 @@ ifdef preload
 endif
 
 ifdef spike-tandem
-    questa-cmd += -gblso tb/riscv-isa-sim/install/lib/libriscv.so
+    questa-cmd += -gblso $(SPIKE_INSTALL_DIR)/lib/libriscv.so
 endif
 
 # remote bitbang is enabled
@@ -279,7 +290,13 @@ vcs_build: $(dpi-library)/ariane_dpi.so
 	vcs $(if $(VERDI), -kdb -debug_access+all -lca,) -full64 -timescale=1ns/1ns -ntb_opts uvm-1.2 work.ariane_tb -error="IWNF"
 
 vcs: vcs_build
-	cd $(vcs-library) && ./simv  $(if $(VERDI), -verdi -do $(root-dir)/util/init_testharness.do,) +permissive -sv_lib ../work-dpi/ariane_dpi +PRELOAD=$(elf-bin) +permissive-off ++$(elf-bin)| tee vcs.log
+	cd $(vcs-library) && \
+	 ./simv +permissive \
+		$(if $(VERDI), -verdi -do $(root-dir)/init_testharness.do,) \
+		+PRELOAD=$(elf-bin) ++$(elf-bin)  \
+		$(if $(spike-tandem),-sv_lib $(SPIKE_INSTALL_DIR)/libriscv) \
+		-sv_lib ../work-dpi/ariane_dpi \
+		| tee vcs.log
 
 # Build the TB and module using QuestaSim
 build: $(library) $(library)/.build-srcs $(library)/.build-tb $(dpi-library)/ariane_dpi.so
@@ -309,10 +326,15 @@ $(dpi-library)/%.o: corev_apu/tb/dpi/%.cc $(dpi_hdr)
 	mkdir -p $(dpi-library)
 	$(CXX) -shared -fPIC -Bsymbolic $(CFLAGS) -c $< -o $@
 
+# Symbolic target to build the DPI library without knowing the internals of this Makefile.
+# Same target name is used in core-v-verif Makefile.
+.PHONY: dpi_build
+dpi_build: $(dpi-library)/ariane_dpi.so
+
 $(dpi-library)/ariane_dpi.so: $(dpi)
 	mkdir -p $(dpi-library)
 	# Compile C-code and generate .so file
-	$(CXX) -shared -m64 -o $(dpi-library)/ariane_dpi.so $? -L$(RISCV)/lib -L$(SPIKE_ROOT)/lib -Wl,-rpath,$(RISCV)/lib -Wl,-rpath,$(SPIKE_ROOT)/lib -lfesvr
+	$(CXX) -shared -m64 -o $(dpi-library)/ariane_dpi.so $? -L$(RISCV)/lib -L$(SPIKE_INSTALL_DIR)/lib -Wl,-rpath,$(RISCV)/lib -Wl,-rpath,$(SPIKE_INSTALL_DIR)/lib -lfesvr -lriscv
 
 # single test runs on Questa can be started by calling make <testname>, e.g. make towers.riscv
 # the test names are defined in ci/riscv-asm-tests.list, and in ci/riscv-benchmarks.list
@@ -324,32 +346,32 @@ generate-trace-vsim:
 
 sim: build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +MAX_CYCLES=$(max_cycles) +UVM_TESTNAME=$(test_case) \
-	+BASEDIR=$(riscv-test-dir) $(uvm-flags) $(QUESTASIM_FLAGS) -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi  \
-	${top_level}_optimized +permissive-off ++$(elf-bin) ++$(target-options) | tee sim.log
+	+BASEDIR=$(riscv-test-dir) $(uvm-flags) $(QUESTASIM_FLAGS) -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi  \
+	${top_level}_optimized +permissive-off +PRELOAD=$(elf-bin) ++$(target-options) | tee sim.log
 
 $(riscv-asm-tests): build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles) +UVM_TESTNAME=$(test_case) \
-	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
+	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
 	${top_level}_optimized $(QUESTASIM_FLAGS) +permissive-off ++$(riscv-test-dir)/$@ ++$(target-options) | tee tmp/riscv-asm-tests-$@.log
 
 $(riscv-amo-tests): build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles) +UVM_TESTNAME=$(test_case) \
-	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
+	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
 	${top_level}_optimized $(QUESTASIM_FLAGS) +permissive-off ++$(riscv-test-dir)/$@ ++$(target-options) | tee tmp/riscv-amo-tests-$@.log
 
 $(riscv-mul-tests): build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles) +UVM_TESTNAME=$(test_case) \
-	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
+	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
 	${top_level}_optimized $(QUESTASIM_FLAGS) +permissive-off ++$(riscv-test-dir)/$@ ++$(target-options) | tee tmp/riscv-mul-tests-$@.log
 
 $(riscv-fp-tests): build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles) +UVM_TESTNAME=$(test_case) \
-	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
+	+BASEDIR=$(riscv-test-dir) $(uvm-flags) +jtag_rbb_enable=0  -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi        \
 	${top_level}_optimized $(QUESTASIM_FLAGS) +permissive-off ++$(riscv-test-dir)/$@ ++$(target-options) | tee tmp/riscv-fp-tests-$@.log
 
 $(riscv-benchmarks): build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles) +UVM_TESTNAME=$(test_case) \
-	+BASEDIR=$(riscv-benchmarks-dir) $(uvm-flags) +jtag_rbb_enable=0 -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi   \
+	+BASEDIR=$(riscv-benchmarks-dir) $(uvm-flags) +jtag_rbb_enable=0 -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi   \
 	${top_level}_optimized $(QUESTASIM_FLAGS) +permissive-off ++$(riscv-benchmarks-dir)/$@ ++$(target-options) | tee tmp/riscv-benchmarks-$@.log
 
 # can use -jX to run ci tests in parallel using X processes
@@ -628,12 +650,12 @@ torture-rtest-verilator: verilate
 
 run-torture: build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles)+UVM_TESTNAME=$(test_case)                                  \
-	+BASEDIR=$(riscv-torture-dir) $(uvm-flags) +jtag_rbb_enable=0 -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi                                      \
+	+BASEDIR=$(riscv-torture-dir) $(uvm-flags) +jtag_rbb_enable=0 -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi                                      \
 	${top_level}_optimized +permissive-off +signature=$(riscv-torture-dir)/$(test-location).rtlsim.sig ++$(riscv-torture-dir)/$(test-location) ++$(target-options)
 
 run-torture-log: build
 	$(VSIM) +permissive $(questa-flags) $(questa-cmd) -lib $(library) +max-cycles=$(max_cycles)+UVM_TESTNAME=$(test_case)                                  \
-	+BASEDIR=$(riscv-torture-dir) $(uvm-flags) +jtag_rbb_enable=0 -gblso $(SPIKE_ROOT)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi                                      \
+	+BASEDIR=$(riscv-torture-dir) $(uvm-flags) +jtag_rbb_enable=0 -gblso $(SPIKE_INSTALL_DIR)/lib/libfesvr.so -sv_lib $(dpi-library)/ariane_dpi                                      \
 	${top_level}_optimized +permissive-off +signature=$(riscv-torture-dir)/$(test-location).rtlsim.sig ++$(riscv-torture-dir)/$(test-location) ++$(target-options)
 	cp vsim.wlf $(riscv-torture-dir)/$(test-location).wlf
 	cp trace_hart_0000.log $(riscv-torture-dir)/$(test-location).trace

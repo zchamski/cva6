@@ -2,7 +2,6 @@
 
 #include "sim_spike.h"
 #include "mmu.h"
-#include "dts.h"
 #include <map>
 #include <iostream>
 #include <sstream>
@@ -15,67 +14,83 @@
 #include <sys/types.h>
 #include <inttypes.h>
 
-sim_spike_t::sim_spike_t(const char* isa, size_t nprocs,
+std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devs;
+
+// FIXME TODO Review settings of dm_config below.
+debug_module_config_t dm_config = {
+  .progbufsize = 2,
+  .max_sba_data_width = 0,
+  .require_authentication = false,
+  .abstract_rti = 0,
+  .support_hasel = true,
+  .support_abstract_csr_access = true,
+  .support_abstract_fpr_access = true,
+  .support_haltgroups = true,
+  .support_impebreak = true
+};
+
+sim_spike_t::sim_spike_t(const cfg_t *cfg,
              std::vector<std::pair<reg_t, mem_t*>> mems,
-             const std::vector<std::string>& args)
-  : mems(mems), procs(std::max(nprocs, size_t(1))),
-  current_step(0), current_proc(0), debug(false), log(true),
-    histogram_enabled(false), dtb_enabled(true), remote_bitbang(NULL)
+             const std::vector<std::string>& args,
+             size_t max_steps)
+  : sim_t(cfg,   // cfg
+          true,  // halted
+          mems,  // mems
+          plugin_devs,
+          args,
+          dm_config,
+          "tandem.log",  // log_path
+          false, // dtb_enabled
+          "",  // dtb_file
+          false, // socket_enabled
+          NULL,  // cmd_file
+          max_steps)
 {
-
-  for (auto& x : mems)
-    bus.add_device(x.first, x.second);
-
-  debug_mmu = new mmu_t(this, NULL);
-
-  for (size_t i = 0; i < procs.size(); i++) {
-    procs[i] = new processor_t(isa, this, i, false);
-  }
-
-  clint.reset(new clint_t(procs));
-  // we need to bring the clint to a reproducible default value
-  clint.get()->reset();
-  bus.add_device(CLINT_BASE, clint.get());
-  uart.reset(new uart_t());
-  bus.add_device(UART_BASE, uart.get());
-  make_bootrom();
-  set_procs_debug(true);
+  std::cerr << "[Spike Tandem] Simulator instantiated.\n";
 }
 
 sim_spike_t::~sim_spike_t()
 {
-  for (size_t i = 0; i < procs.size(); i++)
-    delete procs[i];
-  delete debug_mmu;
 }
 
 commit_log_t sim_spike_t::tick(size_t n)
 {
   commit_log_t commit_log;
 
-  reg_t pc = procs[0]->get_state()->pc;
-  auto& reg = procs[0]->get_state()->log_reg_write;
+  reg_t pc = get_core(0)->get_state()->pc;
+  // TODO FIXME Handle multiple writes in a single insn.
+  auto& reg_commits = get_core(0)->get_state()->log_reg_write;
   // execute instruction
-  procs[0]->step(n);
-  int priv = procs[0]->get_state()->last_inst_priv;
-  int xlen = procs[0]->get_state()->last_inst_xlen;
-  int flen = procs[0]->get_state()->last_inst_flen;
+  get_core(0)->step(n);
+  int priv = get_core(0)->get_state()->last_inst_priv;
+  int xlen = get_core(0)->get_state()->last_inst_xlen;
+  int flen = get_core(0)->get_state()->last_inst_flen;
 
   commit_log.priv = priv;
   commit_log.pc = pc;
-  commit_log.is_fp = reg.addr & 1;
-  commit_log.rd = reg.addr >> 1;
-  commit_log.data = reg.data.v[0];
-  commit_log.instr = procs[0]->get_state()->last_insn;
-  commit_log.was_exception = procs[0]->get_state()->was_exception;
+  for (auto reg : reg_commits) {
+    commit_log.is_fp = reg.first & 0xf == 1;
+    commit_log.rd = reg.first >> 4;
+    // TODO FIXME Take into account the XLEN/FLEN for int/FP values.
+    commit_log.data = reg.second.v[0];
+    // TODO FIXME Handle multiple register commits per cycle.
+    break;  // FORNOW Stop at first reg commit.
+  }
+
+  // TODO FIXME There's no direct access to the last executed insn anymore,
+  // only to the last FDE-ed (Fetched, Decoded and Executed) PC.
+  // commit_log.instr = get_core(0)->get_state()->last_insn;
+  //commit_log.was_exception = get_core(0)->get_state()->was_exception;
 
   return commit_log;
 }
 
 void sim_spike_t::clint_tick() {
-  clint->increment(1);
+  // TODO FIXME 'clint' is a private member of sim.
+  //clint->increment(1);
 }
 
+#if 0 // FORNOW Unused code, disable until needed.
 void sim_spike_t::set_debug(bool value)
 {
   debug = value;
@@ -133,3 +148,4 @@ char* sim_spike_t::addr_to_mem(reg_t addr) {
       return mem->contents() + (addr - desc.first);
   return NULL;
 }
+#endif

@@ -174,7 +174,7 @@ module decoder import ariane_pkg::*; #(
                                 end
                                 // WFI
                                 12'b1_0000_0101: begin
-                                    if (ENABLE_WFI) instruction_o.op = ariane_pkg::WFI;
+                                    instruction_o.op = ariane_pkg::WFI;
                                     // if timeout wait is set, trap on an illegal instruction in S Mode
                                     // (after 0 cycles timeout)
                                     if (priv_lvl_i == riscv::PRIV_LVL_S && tw_i) begin

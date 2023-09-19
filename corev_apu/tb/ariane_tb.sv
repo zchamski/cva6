@@ -98,13 +98,8 @@ module ariane_tb;
     ) i_spike (
         .clk_i,
         .rst_ni,
-        .clint_tick_i   ( rtc_i                               ),
-        .commit_instr_i ( dut.i_ariane.commit_instr_id_commit ),
-        .commit_ack_i   ( dut.i_ariane.commit_ack             ),
-        .exception_i    ( dut.i_ariane.ex_commit              ),
-        .waddr_i        ( dut.i_ariane.waddr_commit_id        ),
-        .wdata_i        ( dut.i_ariane.wdata_commit_id        ),
-        .priv_lvl_i     ( dut.i_ariane.priv_lvl               )
+        .clint_tick_i ( rtc_i    ),
+        .rvfi_i       ( dut.rvfi )
     );
     initial begin
         $display("Running binary in tandem mode");
@@ -170,8 +165,7 @@ module ariane_tb;
             // while there are more sections to process
             while (get_section(address, len)) begin
                 automatic int num_words = (len+7)/8;
-                `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len),
-UVM_LOW)
+                `uvm_info( "Core Test", $sformatf("Loading Address: %x, Length: %x", address, len), UVM_LOW)
                 buffer = new [num_words*8];
                 void'(read_section(address, buffer));
                 // preload memories
