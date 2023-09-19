@@ -69,7 +69,9 @@ install_exes_dir := $(INSTALLDIR)/bin
 sprojs         := @subprojects@
 sprojs_enabled := @subprojects_enabled@
 
-sprojs_include := -I. -I$(src_dir) $(addprefix -I$(src_dir)/, $(sprojs_enabled))
+EDA_INCLUDES := -I$(VCS_HOME)/include -I/$(QUESTASIM_HOME)/include -I$(XCEL_HOME)/include
+
+sprojs_include := -I. -I$(src_dir) $(addprefix -I$(src_dir)/, $(sprojs_enabled)) $(EDA_INCLUDES)
 VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 
 #-------------------------------------------------------------------------
