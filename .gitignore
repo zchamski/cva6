@@ -23,6 +23,7 @@ build/
 *.out
 *.jou
 *.o
+*.so
 uart
 work-ver/*
 corev_apu/fpga/work-fpga
