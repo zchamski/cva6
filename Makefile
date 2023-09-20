@@ -67,8 +67,8 @@ spike-tandem ?= $(SPIKE_TANDEM)
 # tandem simulation is a verification task rather than part of the RTL.
 # By default assume spike is installed at the SPIKE_INSTALL_DIR prefix.
 # Spike source code and include files are at SPIKE_ROOT.
-SPIKE_ROOT        ?= $(root-dir)/../../vendor/riscv/riscv-isa-sim
-SPIKE_INSTALL_DIR ?= $(root-dir)/../../tools/spike
+SPIKE_ROOT        ?= $(root-dir)/vendor/riscv/riscv-isa-sim
+SPIKE_INSTALL_DIR ?= $(root-dir)/tools/spike
 
 # setting additional xilinx board parameters for the selected board
 ifeq ($(BOARD), genesys2)
