@@ -68,6 +68,7 @@ extern "C" int64_t read_symbol(const char* symbol, uint64_t* address);
 extern "C" char get_section (long long* address, long long* len);
 extern "C" void read_section_void(long long address, void * buffer, uint64_t size = 0);
 
+
 // Called by $time in Verilog converts to double, to match what SystemC does
 double sc_time_stamp () {
     return main_time;

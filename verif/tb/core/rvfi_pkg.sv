@@ -4,9 +4,16 @@
 // Pre-processor macros
 `ifdef VERILATOR
     `define uvm_info(TOP,MSG,LVL) \
-        $display(TOP + ":" + MSG);
+        begin \
+            string tmp = MSG; \
+            $display($sformatf("%s: %s", TOP ,tmp)); \
+        end
+
     `define uvm_fatal(TOP,MSG) \
-        $display(TOP + ":" + MSG); $finish();
+        begin \
+            string tmp = MSG; \
+            $display($sformatf("%s: %s", TOP ,tmp)); $finish(); \
+        end
 `else
 `include "uvm_macros.svh"
 `endif
