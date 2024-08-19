@@ -18,8 +18,9 @@ fi
 VERILATOR_REPO="https://github.com/verilator/verilator.git"
 VERILATOR_BRANCH="master"
 # Use the release tag instead of a full SHA1 hash.
-VERILATOR_HASH="v5.008"
-VERILATOR_PATCH="$ROOT_PROJECT/verif/regress/verilator-v5.patch"
+VERILATOR_HASH="v5.024"
+#VERILATOR_PATCH="$ROOT_PROJECT/verif/regress/verilator-v5.patch"
+VERILATOR_PATCH="$ROOT_PROJECT/verilator-v5.024.patch.0001"
 
 # Unset historical variable VERILATOR_ROOT as it collides with the build process.
 if [ -n "$VERILATOR_ROOT" ]; then
@@ -69,7 +70,7 @@ if [ ! -f "$VERILATOR_INSTALL_DIR/bin/verilator" ]; then
       git apply $VERILATOR_PATCH || true
     fi
     # Generate the config script and configure Verilator.
-    autoconf && ./configure --prefix="$VERILATOR_INSTALL_DIR" && make -j${NUM_JOBS}
+    autoconf && CXXFLAGS="-g -O2" ./configure --prefix="$VERILATOR_INSTALL_DIR" && make -j${NUM_JOBS}
     # FORNOW: Accept failure in 'make test' (segfault issue on Debian10)
     make test || true
     echo "Installing Verilator in $VERILATOR_INSTALL_DIR..."

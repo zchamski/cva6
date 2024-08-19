@@ -593,13 +593,14 @@ xrun-ci: xrun-asm-tests xrun-amo-tests xrun-mul-tests xrun-fp-tests xrun-benchma
 
 # verilator-specific
 verilate_command := $(verilator) --no-timing verilator_config.vlt                                                \
+                    $(if $(VERILATED_DEBUG),--runtime-debug)                                                     \
                     -f core/Flist.cva6                                                                           \
-                    core/cva6_rvfi.sv                                                                            \
+                    $(CVA6_REPO_DIR)/core/cva6_rvfi.sv                                                           \
                     $(filter-out %.vhd, $(ariane_pkg))                                                           \
                     $(filter-out core/fpu_wrap.sv, $(filter-out %.vhd, $(filter-out %_config_pkg.sv, $(src))))   \
                     +define+$(defines)$(if $(TRACE_FAST),+VM_TRACE)$(if $(TRACE_COMPACT),+VM_TRACE+VM_TRACE_FST) \
-                    corev_apu/tb/common/mock_uart.sv                                                             \
-                    +incdir+corev_apu/axi_node                                                                   \
+                    $(CVA6_REPO_DIR)/corev_apu/tb/common/mock_uart.sv                                            \
+                    +incdir+$(CVA6_REPO_DIR)/corev_apu/axi_node                                                  \
                     $(if $(verilator_threads), --threads $(verilator_threads))                                   \
                     --unroll-count 256                                                                           \
                     -Wall                                                                                        \
@@ -619,7 +620,7 @@ verilate_command := $(verilator) --no-timing verilator_config.vlt               
                     $(if $(TRACE_COMPACT), --trace-fst $(VL_INC_DIR)/verilated_fst_c.cpp)                        \
                     $(if $(TRACE_FAST), --trace $(VL_INC_DIR)/verilated_vcd_c.cpp)                               \
                     -LDFLAGS "-L$(RISCV)/lib -L$(SPIKE_INSTALL_DIR)/lib -Wl,-rpath,$(RISCV)/lib -Wl,-rpath,$(SPIKE_INSTALL_DIR)/lib -lfesvr -lriscv -ldisasm -lyaml-cpp $(if $(PROFILE), -g -pg,) -lpthread $(if $(TRACE_COMPACT), -lz,)" \
-                    -CFLAGS "$(CFLAGS)$(if $(PROFILE), -g -pg,) -DVL_DEBUG -I$(SPIKE_INSTALL_DIR)"               \
+                    -CFLAGS "$(CFLAGS) -g -Os $(if $(PROFILE), -g -pg,) -DVL_DEBUG -I$(SPIKE_INSTALL_DIR) $(if $(VERILATED_DEBUG),--param max-vartrack-size=1000,)"               \
                     $(if $(SPIKE_TANDEM), +define+SPIKE_TANDEM, )                                                \
                     --cc --vpi                                                                                   \
                     $(list_incdir) --top-module ariane_testharness                                               \
