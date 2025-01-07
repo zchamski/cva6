@@ -4157,10 +4157,32 @@ hart_schema:
                 description: {type: string, default: pmp configuration bits}
                 shadow: {type: string, default: , nullable: True}
                 shadow_type: {type: string, default: rw, nullable: True, allowed: ['rw','ro']}
-                msb: {type: integer, default: 7, allowed: [7]}
-                lsb: {type: integer, default: 0, allowed: [0]}
-                implemented: {type: boolean, default: false}
-                type: 
+                rwx:
+                  type:
+                    type: dict
+                    schema: { wlrl: *ref_wrlr }
+                    default:
+                      wlrl:
+                      - [ 0x0, 0x1, 0x3, 0x4, 0x5, 0x7]
+                  msb: {type: integer, default: 2, allowed: [2]}
+                  lsb: {type: integer, default: 0, allowed: [0]}
+                a:
+                  type:
+                    type: dict
+                    schema: { wlrl: *ref_wrlr }
+                    default:
+                      wrlr:
+                      - 0x0:0x3
+                  lsb: {type: integer, default: 3, allowed: [3]}
+                  msb: {type: integer, default: 4, allowed: [4]}
+                l:
+                  type:
+                    type: dict
+                    schema: { warl: *ref_warl }
+                  lsb: {type: integer, default: 7, allowed: [7]}
+                  msb: {type: integer, default: 7, allowed: [7]}
+                implemented: {type: boolean, default: true}
+                  type:
                   type: dict
                   oneof:
                     - schema: {ro_constant: {type: integer, max:  0xFF}}
